@@ -32,6 +32,13 @@ export const clinicians = pgTable("clinicians", {
   // Last invoice number issued. Incremented inside the invoice transaction so
   // numbers are sequential per clinician with no gaps (a Postgres sequence can skip).
   lastInvoiceNumber: integer("last_invoice_number").notNull().default(0),
+  // Evening email listing tomorrow's appointments (sent by /api/cron/reminders).
+  reminderEmails: boolean("reminder_emails").notNull().default(false),
+  // IANA zone (e.g. "Africa/Nairobi") from the clinician's browser, so "tomorrow" and
+  // "6 pm" mean their local day and time when the server sends reminders.
+  timeZone: text("time_zone"),
+  // Local date (YYYY-MM-DD) the last reminder went out, so it's sent once a day.
+  lastReminderSentOn: date("last_reminder_sent_on"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -122,6 +129,8 @@ export const patients = pgTable(
     gender: text("gender"),
     address: text("address"),
     phone: text("phone"),
+    // Where this patient's invoices were last emailed; pre-fills the next invoice.
+    invoiceEmail: text("invoice_email"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -175,10 +184,15 @@ export const appointments = pgTable(
     typeOfCare: text("type_of_care").notNull(),
     // Money is stored in minor units (cents) to avoid floating-point errors.
     feeMinor: integer("fee_minor").notNull(),
+    // When the visit actually started and ended, recorded by the clinician. Shown on the
+    // signed note; locked once the note is signed (trigger in drizzle/0003).
+    timeIn: timestamp("time_in", { withTimezone: true }),
+    timeOut: timestamp("time_out", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    check("appointments_time_out_after_time_in", sql`${t.timeOut} is null or ${t.timeIn} is null or ${t.timeOut} > ${t.timeIn}`),
     index("appointments_clinician_starts_at_idx").on(t.clinicianId, t.startsAt),
     index("appointments_patient_id_idx").on(t.patientId),
   ],
@@ -233,6 +247,9 @@ export const invoices = pgTable(
       .notNull()
       .references(() => patients.id, { onDelete: "restrict" }),
     totalMinor: integer("total_minor").notNull(),
+    // Set when the invoice PDF was emailed.
+    sentTo: text("sent_to"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

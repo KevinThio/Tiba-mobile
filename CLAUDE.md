@@ -16,7 +16,7 @@ npm run db:migrate    # apply migrations (PGlite locally, or DATABASE_URL if set
 npm run db:seed       # load diagnosis codes; pass a CSV path to load the full list: npm run db:seed -- path.csv
 ```
 
-First run: copy `.env.example` to `.env.local`, set `BETTER_AUTH_SECRET`, then run `npm run db:migrate && npm run db:seed`. To reset the local database, delete `.data/` and run those two commands again.
+First run: copy `.env.example` to `.env.local`, set `BETTER_AUTH_SECRET` (and `CRON_SECRET`; `SMTP_URL` is optional in dev), then run `npm run db:migrate && npm run db:seed`. To reset the local database, delete `.data/` and run those two commands again.
 
 There is no test runner yet.
 
@@ -30,7 +30,7 @@ There is no test runner yet.
 A responsive web app, installable on phones as a PWA (no native app), for a **solo clinician** to book appointments, write and sign visit notes, find patients, and generate invoice PDFs.
 
 - **One login only:** the clinician. Patients never log in; they sign on the clinician's device.
-- **Three screens:** Appointments (calendar), Visit note, Patient record. The brand rule is "three screens, nothing to learn", so push back on new screens or settings.
+- **Four screens:** Appointments (calendar), Visit note, Patient record, and Invoices (added at the user's request). The brand rule is still "nothing to learn", so push back on further screens or settings.
 - **Out of scope for v1:** reminders, payment tracking, insurance claims, multi-user practices and roles, patient logins and self-booking, note templates, reports, and dashboards.
 
 ## Architecture
@@ -48,7 +48,15 @@ A responsive web app, installable on phones as a PWA (no native app), for a **so
 
 **Rules enforced by the database, not just the UI:**
 - **Signed notes are locked.** A trigger in [drizzle/0001_lock_signed_notes.sql](drizzle/0001_lock_signed_notes.sql) rejects any UPDATE or DELETE once `signed_at` is set. Corrections go in `note_addenda`. A check constraint stops a note being marked signed without `clinician_signature`. The patient's signature is optional, so collect it *before* the clinician signs.
-- **Gap-free invoice numbers:** in the same transaction that inserts the invoice, run `UPDATE clinicians SET last_invoice_number = last_invoice_number + 1 ... RETURNING`. Don't use a Postgres sequence, because sequences skip numbers on rollback. `invoice_items.appointment_id` is unique, so a visit can only be invoiced once.
+- **Gap-free invoice numbers:** in the same transaction that inserts the invoice, run `UPDATE clinicians SET last_invoice_number = last_invoice_number + 1 ... RETURNING` (as `createInvoice` does). Don't use a Postgres sequence, because sequences skip numbers on rollback. `invoice_items.appointment_id` is unique, so a visit can only be invoiced once.
+
+**Invoices screen** (`src/app/(app)/invoices/`):
+- The visit list covers the look-back period (`periods.ts`) up to now, across all patients. An invoice is for **one patient**: the first ticked visit decides who, and the server re-checks that, plus that every visit belongs to the clinician, has already happened and isn't on another invoice.
+- When an email address is given, `createInvoice` emails the PDF after the transaction commits. A failed send doesn't undo the invoice; it comes back as `emailError`, and the user can resend from Recent invoices. The address is saved to `patients.invoice_email` to pre-fill the next invoice. `invoices.sent_to` and `sent_at` record the send.
+- The PDF comes from [src/lib/invoice-pdf.tsx](src/lib/invoice-pdf.tsx) (`@react-pdf/renderer`, built-in Helvetica) with the same letterhead content as `NoteLetterhead`. It's served privately at `/api/invoices/[id]/pdf`. Times print in `clinicians.time_zone`.
+- A `"use server"` file may only export async functions, so shared constants such as `PERIODS` live in separate modules.
+
+**Email** ([src/lib/email.ts](src/lib/email.ts)): nodemailer over `SMTP_URL` (any provider), sending from `EMAIL_FROM`. Without `SMTP_URL` in development, emails are written to `.data/outbox/*.eml`; open them in a mail app to check them. Production throws `EmailNotConfiguredError`, which the actions turn into friendly copy. Build bodies with `renderEmail()`. Never log email contents or recipients.
 - Hand-written SQL (extensions, triggers) goes in `npm run db:generate -- --custom --name <name>` migrations. `0000_init.sql` was edited to start with `CREATE EXTENSION pg_trgm`.
 
 **Search** uses the `pg_trgm` GIN indexes on `patients.full_name` and `diagnosis_codes`. For typo-tolerant name search, use `word_similarity(q, full_name) > 0.3 OR full_name ILIKE '%'||q||'%'`, ordered by `word_similarity`. The default `%` operator compares against the whole name and misses typos like "amna" for "Amina Wanjiru".
@@ -70,7 +78,9 @@ A responsive web app, installable on phones as a PWA (no native app), for a **so
 - Server Actions live in `actions.ts`: list (for the calendar's visible range), patient search, care types with their last fee, and create. Every one starts with `requireClinician()` and filters by `clinicianId`.
 - The calendar is FullCalendar 7 (`@fullcalendar/react`, classic theme). The theme's CSS classes are **minified**, so style it only through the palette variables in `calendar.css`, the `dayCellClass`/`eventContent` hooks, and `[data-date]` attributes. `dateClick` listens for pointer events, so a synthetic `.click()` won't trigger it.
 - Times: the browser turns its local date and time into an ISO instant before calling the server, and the server stores `timestamptz`. Display always uses the viewer's local time.
-- `/appointments/[id]` is the Visit note screen. So far it shows the letterhead (`NoteLetterhead`: practice logo, practice name and clinician), the visit details and blank signature lines. Writing and signing come next. The PDF must reuse the same letterhead layout. Show dates and times on server-rendered pages with `LocalDateTime`, because the server doesn't know the viewer's time zone.
+- `/appointments/[id]` is the Visit note screen. So far it shows the letterhead (`NoteLetterhead`: practice logo, practice name and clinician), the visit details, **Visit times** and blank signature lines. Writing and signing come next.
+  - **Time in and time out** (`appointments.time_in`/`time_out`) are recorded with `setVisitTimes` in `visit-times.tsx`. The one-tap "now" buttons appear only on the visit day; a typed time always counts as being on the visit's day. A check constraint requires time out to be after time in, and a trigger in `drizzle/0003` locks both times (and `starts_at`) once the note is signed. Before signing, the times show as editable inputs; after signing, they print in the details grid, on the note PDF and on invoices.
+- **Tomorrow card and reminders** (`tomorrow-card.tsx`, `reminder-actions.ts`, [src/lib/reminders.ts](src/lib/reminders.ts)): "Email me tomorrow's list" sends immediately. The evening reminder is `clinicians.reminder_emails` plus `time_zone`, which is saved from the browser. `GET /api/cron/reminders` with `Authorization: Bearer $CRON_SECRET` sends at most one email per clinician per local day, after 6 pm in their time zone, so call it **hourly** from a scheduler (Vercel Cron, a GitHub Action, cron-job.org). Reminder emails show patients as "Amina W." only. Time-zone maths uses `temporal-polyfill`. The PDF must reuse the same letterhead layout. Show dates and times on server-rendered pages with `LocalDateTime`, because the server doesn't know the viewer's time zone.
 
 ## Design system
 
@@ -89,7 +99,7 @@ A responsive web app, installable on phones as a PWA (no native app), for a **so
   - `LogoUpload`: picks and resizes the practice logo. It's used on sign-up and in `PracticeDetailsDialog`, which opens from the sidebar and the phone account sheet.
   - `Logo`.
 - **Sign-in screens:** [src/app/(auth)/layout.tsx](src/app/(auth)/layout.tsx) shows the brand panel beside the form on `lg` screens and only the logo plus form on smaller ones. Start each auth page with `AuthHeading`.
-- **Phone layout:** `main` has bottom padding (`pb-28`) so content clears the bottom tab bar. Keep it if you change the shell.
+- **Phone layout:** `main` has bottom padding (`pb-28`) so content clears the bottom tab bar. Keep it if you change the shell. Use `grid-cols-1` (which is `minmax(0, 1fr)`) on page-level grids. A plain `grid` column grows to its widest content, and on phones that silently widens the whole page (`innerWidth` grows past the device width; it was 566px instead of 390px), so check `window.innerWidth` at 390px, not just horizontal scroll.
 - **shadcn gotchas:**
   - `shadcn add` writes `import { cn } from "cn"` and installs the `cn` package (plus `next-themes` for sonner). We use `cn` from `@/lib/utils` (clsx + tailwind-merge) and have no theme switching, and ESLint errors on the `cn` import. After adding a component, fix its imports and `npm uninstall cn next-themes`.
   - Components that depend on `button` stop at a prompt asking to overwrite it. Back up `src/components/ui/button.tsx`, run `shadcn add <name> -y --overwrite`, then restore the button.

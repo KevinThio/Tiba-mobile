@@ -9,7 +9,7 @@ export default async function PatientsPage() {
     <div className="grid gap-8">
       <PageHeader title="Patients" description="Find a patient and see all their visits and notes." />
       <EmptyState icon={UsersRound} title="Patient records are coming soon">
-        This is where you&apos;ll search for patients, open their notes and create invoices.
+        This is where you&apos;ll search for patients, update their details and open their notes.
       </EmptyState>
     </div>
   );

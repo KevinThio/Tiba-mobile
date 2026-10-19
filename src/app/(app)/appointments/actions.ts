@@ -16,6 +16,8 @@ export type AppointmentSummary = {
   patientId: string;
   patientName: string;
   signed: boolean;
+  timeIn: string | null; // ISO
+  timeOut: string | null; // ISO
 };
 
 export type PatientOption = { id: string; fullName: string; dateOfBirth: string; phone: string | null };
@@ -29,10 +31,23 @@ const summaryColumns = {
   patientId: patients.id,
   patientName: patients.fullName,
   signed: isNotNull(notes.signedAt),
+  timeIn: appointments.timeIn,
+  timeOut: appointments.timeOut,
 };
 
-function toSummary(row: { startsAt: Date; signed: unknown } & Omit<AppointmentSummary, "startsAt" | "signed">) {
-  return { ...row, startsAt: row.startsAt.toISOString(), signed: Boolean(row.signed) };
+type SummaryRow = { startsAt: Date; signed: unknown; timeIn: Date | null; timeOut: Date | null } & Omit<
+  AppointmentSummary,
+  "startsAt" | "signed" | "timeIn" | "timeOut"
+>;
+
+function toSummary(row: SummaryRow): AppointmentSummary {
+  return {
+    ...row,
+    startsAt: row.startsAt.toISOString(),
+    signed: Boolean(row.signed),
+    timeIn: row.timeIn?.toISOString() ?? null,
+    timeOut: row.timeOut?.toISOString() ?? null,
+  };
 }
 
 /** Appointments in [start, end), for the calendar's visible range. */
@@ -167,7 +182,46 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
         patientId: patientRow.id,
         patientName: patientRow.fullName,
         signed: false,
+        timeIn: null,
+        timeOut: null,
       },
     };
   });
+}
+
+const visitTimesSchema = z.object({
+  appointmentId: z.uuid(),
+  // ISO instant to set, null to clear, or left out to keep.
+  timeIn: z.iso.datetime({ offset: true }).nullable().optional(),
+  timeOut: z.iso.datetime({ offset: true }).nullable().optional(),
+});
+
+export type VisitTimesResult = { ok: true; timeIn: string | null; timeOut: string | null } | { ok: false; message: string };
+
+/** Record when the visit actually started (time in) and ended (time out). Locked once the note is signed. */
+export async function setVisitTimes(input: z.input<typeof visitTimesSchema>): Promise<VisitTimesResult> {
+  const clinician = await requireClinician();
+  const parsed = visitTimesSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Please check the times and try again." };
+  const { appointmentId, timeIn, timeOut } = parsed.data;
+
+  const [current] = await db
+    .select({ timeIn: appointments.timeIn, timeOut: appointments.timeOut, signed: isNotNull(notes.signedAt) })
+    .from(appointments)
+    .leftJoin(notes, eq(notes.appointmentId, appointments.id))
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicianId, clinician.id)));
+  if (!current) return { ok: false, message: "We couldn't find that visit." };
+  if (current.signed) return { ok: false, message: "This note is signed, so the visit times are locked." };
+
+  const nextIn = timeIn === undefined ? current.timeIn : timeIn ? new Date(timeIn) : null;
+  const nextOut = timeOut === undefined ? current.timeOut : timeOut ? new Date(timeOut) : null;
+  if (nextIn && nextOut && nextOut <= nextIn) {
+    return { ok: false, message: "Time out needs to be after time in." };
+  }
+
+  await db
+    .update(appointments)
+    .set({ timeIn: nextIn, timeOut: nextOut, updatedAt: new Date() })
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicianId, clinician.id)));
+  return { ok: true, timeIn: nextIn?.toISOString() ?? null, timeOut: nextOut?.toISOString() ?? null };
 }

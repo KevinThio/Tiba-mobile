@@ -13,6 +13,7 @@ import { firstName, formatDayLong, formatDayShort, formatFee, formatTime, fromDa
 import { listAppointments, type AppointmentSummary } from "./actions";
 import { AppointmentsCalendar } from "./appointments-calendar";
 import { BookAppointmentDialog } from "./book-appointment-dialog";
+import { TomorrowCard } from "./tomorrow-card";
 
 type Props = {
   clinicianName: string;
@@ -27,6 +28,8 @@ export function AppointmentsView({ clinicianName, careTypes: initialCareTypes }:
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date(now)));
   const [bookingOpen, setBookingOpen] = useState(false);
   const [careTypes, setCareTypes] = useState(initialCareTypes);
+  // Bumped after each booking so the Tomorrow card recounts.
+  const [bookings, setBookings] = useState(0);
   const range = useRef<{ start: string; end: string } | null>(null);
   const requestId = useRef(0);
 
@@ -56,6 +59,7 @@ export function AppointmentsView({ clinicianName, careTypes: initialCareTypes }:
       ...types.filter((t) => t.typeOfCare !== appointment.typeOfCare),
     ]);
     if (range.current) void load(range.current);
+    setBookings((n) => n + 1);
     toast.success(`Done. ${firstName(appointment.patientName)}'s visit is booked for ${formatDayShort(start)} at ${formatTime(start)}.`);
   }
 
@@ -83,7 +87,13 @@ export function AppointmentsView({ clinicianName, careTypes: initialCareTypes }:
           />
         </section>
 
-        <DayPanel date={selectedDate} now={now} appointments={dayAppointments} onBook={() => setBookingOpen(true)} />
+        {/* Side column on wide screens. On phones the day comes first and Tomorrow last. */}
+        <div className="grid grid-cols-1 gap-6 xl:sticky xl:top-10">
+          <DayPanel date={selectedDate} now={now} appointments={dayAppointments} onBook={() => setBookingOpen(true)} />
+          <div className="xl:order-first">
+            <TomorrowCard refreshKey={bookings} />
+          </div>
+        </div>
       </div>
 
       <BookAppointmentDialog
@@ -113,7 +123,7 @@ function DayPanel({
   const isToday = date === toDateKey(new Date(now));
 
   return (
-    <section aria-labelledby="day-heading" className="grid gap-4 xl:sticky xl:top-10">
+    <section aria-labelledby="day-heading" className="grid gap-4">
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="day-heading" className="text-xl">
           {isToday ? "Today" : formatDayLong(day)}
@@ -155,6 +165,11 @@ function DayPanel({
                       <p className="truncate text-sm text-muted-foreground">
                         {a.typeOfCare} · {formatFee(a.feeMinor)}
                       </p>
+                      {(a.timeIn || a.timeOut) && (
+                        <p className="text-sm text-muted-foreground tabular-nums">
+                          In {a.timeIn ? formatTime(new Date(a.timeIn)) : "–"} · Out {a.timeOut ? formatTime(new Date(a.timeOut)) : "–"}
+                        </p>
+                      )}
                       {(a.signed || needsNote) && (
                         <Badge variant={a.signed ? "success" : "accent"} className="mt-2">
                           {a.signed ? "Note signed" : "Note to write"}

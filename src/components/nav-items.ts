@@ -1,4 +1,4 @@
-import { CalendarDays, UsersRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, ReceiptText, UsersRound, type LucideIcon } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -6,6 +6,7 @@ export type NavItem = { href: string; label: string; icon: LucideIcon };
 export const NAV_ITEMS: NavItem[] = [
   { href: "/appointments", label: "Appointments", icon: CalendarDays },
   { href: "/patients", label: "Patients", icon: UsersRound },
+  { href: "/invoices", label: "Invoices", icon: ReceiptText },
 ];
 
 export function isActive(pathname: string, href: string) {

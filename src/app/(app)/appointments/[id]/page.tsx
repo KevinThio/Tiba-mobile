@@ -6,10 +6,11 @@ import { z } from "zod";
 import { LocalDateTime } from "@/components/local-date-time";
 import { NoteLetterhead } from "@/components/note-letterhead";
 import { db } from "@/db";
-import { appointments, clinicians, patients } from "@/db/schema";
+import { appointments, clinicians, notes, patients } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
 import { practiceLogoUrl } from "@/lib/practice-logo";
+import { VisitTimes } from "./visit-times";
 
 // Visit note (screen 2 in the spec). For now: the letterhead and visit details as they'll
 // appear on the finished note. Writing and signing come next.
@@ -26,12 +27,17 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       patientName: patients.fullName,
       dateOfBirth: patients.dateOfBirth,
       hasLogo: isNotNull(clinicians.practiceLogo),
+      timeIn: appointments.timeIn,
+      timeOut: appointments.timeOut,
+      signed: isNotNull(notes.signedAt),
     })
     .from(appointments)
     .innerJoin(patients, eq(patients.id, appointments.patientId))
     .innerJoin(clinicians, eq(clinicians.id, appointments.clinicianId))
+    .leftJoin(notes, eq(notes.appointmentId, appointments.id))
     .where(and(eq(appointments.id, id), eq(appointments.clinicianId, clinician.id)));
   if (!visit) notFound();
+  const signed = Boolean(visit.signed);
 
   return (
     <div className="grid grid-cols-1 gap-6">
@@ -59,11 +65,27 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
           <Detail label="Date">
             <LocalDateTime iso={visit.startsAt.toISOString()} options={{ weekday: "short", day: "numeric", month: "long", year: "numeric" }} />
           </Detail>
-          <Detail label="Time">
-            <LocalDateTime iso={visit.startsAt.toISOString()} options={{ hour: "2-digit", minute: "2-digit" }} />
+          <Detail label="Booked for">
+            <LocalDateTime iso={visit.startsAt.toISOString()} options={TIME} />
             <span className="text-muted-foreground"> · {visit.durationMinutes} min</span>
           </Detail>
+          {/* On the signed note, the recorded times print with the other details. */}
+          {signed && (
+            <>
+              <Detail label="Time in">{visit.timeIn ? <LocalDateTime iso={visit.timeIn.toISOString()} options={TIME} /> : "Not recorded"}</Detail>
+              <Detail label="Time out">{visit.timeOut ? <LocalDateTime iso={visit.timeOut.toISOString()} options={TIME} /> : "Not recorded"}</Detail>
+            </>
+          )}
         </dl>
+
+        {!signed && (
+          <VisitTimes
+            appointmentId={id}
+            startsAt={visit.startsAt.toISOString()}
+            initial={{ timeIn: visit.timeIn?.toISOString() ?? null, timeOut: visit.timeOut?.toISOString() ?? null }}
+            locked={false}
+          />
+        )}
 
         <div className="rounded-2xl border border-dashed px-5 py-12 text-center text-muted-foreground">
           Writing and signing the note is coming soon.
@@ -77,6 +99,8 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
     </div>
   );
 }
+
+const TIME: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit" };
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
