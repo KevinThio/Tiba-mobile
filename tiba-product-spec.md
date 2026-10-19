@@ -10,27 +10,32 @@ A website for desktop and mobile where a solo clinician keeps every patient's vi
 A solo clinician (such as a therapist) running their own small practice, who books patients and writes notes without any staff. Today they use Word, fillable PDFs, and Google Forms, so notes are scattered across tools and unreliable to find.
 
 ## User types and what each can do
-- **Clinician (the only login):** adds patients, books appointments, writes and signs notes, searches patients, downloads notes, and generates invoices.
+- **Clinician (the only login):** sets up their practice (name and optional logo), adds patients, books appointments, writes and signs notes, searches patients, downloads notes, and generates invoices.
 - **Patients do not log in.** They sign on the clinician's device during the visit.
 
 ## Core action
 Write and sign a note for a patient visit.
+
+## Sign up and practice details
+- **Sign up** asks for the clinician's name, practice name, an optional practice logo (an image, such as PNG or JPG), email, and password.
+- The practice name and logo can be changed later from **Practice details** in the account menu.
+- The practice name and logo form the **letterhead** at the top of every visit note, both on screen and in the downloaded PDF. With no logo, the letterhead shows the practice name only.
 
 ## Screens
 1. **Appointments (calendar)**
    - Shows: a calendar with the appointments booked on each day.
    - User can: click a date and add an appointment (time, type of care, fee, patient, therapist name filled in automatically), add a new patient while booking, and click an appointment to open its note.
 2. **Visit note**
-   - Shows: the patient, appointment date and time, type of care, a free text note box, and two signature areas.
+   - Shows: the practice letterhead (logo and practice name) with the clinician's name, the patient, appointment date and time, type of care, a free text note box, and two signature areas.
    - User can: write and edit the note, sign it (required before the note can be finished), collect the patient's signature (optional), and save.
 3. **Patient record**
    - Shows: a search bar, the chosen patient's details, and all their visits and notes in date order.
-   - User can: search by patient name, update patient details, search for and add diagnosis codes, open any note and download it as a PDF, and tick completed visits to generate an invoice as a PDF.
+   - User can: search by patient name, update patient details, search for and add diagnosis codes, open any note and download it as a PDF (with the practice letterhead), and tick completed visits to generate an invoice as a PDF.
 
 ## Data
 | Table | Fields | Written by | Read by |
 |---|---|---|---|
-| Clinicians | name, practice name, email, password | Sign up | All three screens |
+| Clinicians | name, practice name, practice logo (optional image), email, password | Sign up, Practice details | All three screens, note PDFs |
 | Patients | full name, date of birth (age is calculated), gender, address, phone, diagnosis codes | Appointments, Patient record | All three screens |
 | Diagnosis codes | code, description (a standard list, loaded once) | Nobody (fixed list) | Patient record |
 | Appointments | date, time, type of care, fee, patient, clinician | Appointments | Visit note, Patient record |

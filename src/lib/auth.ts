@@ -25,6 +25,12 @@ export const auth = betterAuth({
       twoFactor: schema.twoFactors,
     },
   }),
+  // BETTER_AUTH_URL is always trusted. In development, also accept the dev server's
+  // other addresses: 127.0.0.1 and the computer's Wi-Fi address (for testing on a phone).
+  trustedOrigins:
+    process.env.NODE_ENV === "development"
+      ? ["http://localhost:*", "http://127.0.0.1:*", "http://192.168.*", "http://10.*"]
+      : [],
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 12,

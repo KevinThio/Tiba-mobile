@@ -1,0 +1,1 @@
+ALTER TABLE "clinicians" ADD COLUMN "practice_logo" text;

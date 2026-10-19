@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FormField } from "@/components/form-field";
+import { AuthHeading } from "@/components/auth-heading";
+import { FormAlert } from "@/components/form-alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 
 export default function TwoFactorPage() {
@@ -18,8 +21,8 @@ export default function TwoFactorPage() {
     setPending(true);
     setError(null);
     const { error } = await authClient.twoFactor.verifyTotp({ code: String(form.get("code")) });
-    setPending(false);
     if (error) {
+      setPending(false);
       setError("That code didn't work. Codes change every 30 seconds, so try the newest one.");
       return;
     }
@@ -27,25 +30,36 @@ export default function TwoFactorPage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-heading text-2xl text-primary">One more step</CardTitle>
-        <CardDescription>Enter the 6-digit code from your authenticator app.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="grid gap-5">
-          <FormField
-            label="Code"
+    <>
+      <AuthHeading title="One more step">Enter the 6-digit code from your authenticator app.</AuthHeading>
+      <form onSubmit={onSubmit} className="grid gap-5">
+        <div className="grid gap-2">
+          <Label htmlFor="code" className="sr-only">
+            6-digit code
+          </Label>
+          <Input
+            id="code"
             name="code"
             inputMode="numeric"
             autoComplete="one-time-code"
             pattern="[0-9]{6}"
+            maxLength={6}
+            placeholder="000000"
+            autoFocus
             required
+            className="h-14 text-center font-mono text-2xl tracking-[0.5em] placeholder:tracking-[0.5em]"
           />
-          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" disabled={pending}>{pending ? "Checking…" : "Continue"}</Button>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+        {error && <FormAlert>{error}</FormAlert>}
+        <Button type="submit" size="lg" disabled={pending}>
+          {pending ? "Checking…" : "Continue"}
+        </Button>
+      </form>
+      <p className="mt-8 text-center text-muted-foreground">
+        <Link href="/sign-in" className="font-medium text-primary underline underline-offset-4">
+          Back to sign in
+        </Link>
+      </p>
+    </>
   );
 }

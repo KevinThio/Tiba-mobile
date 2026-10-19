@@ -25,6 +25,10 @@ export const clinicians = pgTable("clinicians", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   practiceName: text("practice_name").notNull(),
+  // Optional practice logo for the note letterhead: a PNG/JPEG data URL, resized in the
+  // browser and checked by parseLogoDataUrl. Not a Better Auth field, so it never rides
+  // along in the session; it's served by /api/practice-logo.
+  practiceLogo: text("practice_logo"),
   // Last invoice number issued. Incremented inside the invoice transaction so
   // numbers are sequential per clinician with no gaps (a Postgres sequence can skip).
   lastInvoiceNumber: integer("last_invoice_number").notNull().default(0),
