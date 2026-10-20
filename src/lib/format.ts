@@ -36,17 +36,18 @@ export function fromDateKey(key: string) {
 }
 
 export function formatTime(date: Date) {
-  return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  // Tiba writes times as 09:30 and dates as "Friday 17 October" whatever the browser's language.
+  return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 /** "Friday 17 October" */
 export function formatDayLong(date: Date) {
-  return date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  return date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }
 
 /** "Fri 17 Oct" */
 export function formatDayShort(date: Date) {
-  return date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 }
 
 export function firstName(fullName: string) {

@@ -3,7 +3,7 @@
 import { and, asc, desc, eq, gte, ilike, isNotNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { appointments, notes, patients } from "@/db/schema";
+import { appointments, invoiceItems, notes, patients } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { parseFeeToMinor } from "@/lib/format";
 
@@ -16,6 +16,9 @@ export type AppointmentSummary = {
   patientId: string;
   patientName: string;
   signed: boolean;
+  /** A note was started but not signed yet. */
+  draft: boolean;
+  invoiced: boolean;
   timeIn: string | null; // ISO
   timeOut: string | null; // ISO
 };
@@ -31,20 +34,28 @@ const summaryColumns = {
   patientId: patients.id,
   patientName: patients.fullName,
   signed: isNotNull(notes.signedAt),
+  draft: sql<boolean>`${notes.id} is not null and ${notes.signedAt} is null`,
+  invoiced: sql<boolean>`exists (select 1 from ${invoiceItems} where ${invoiceItems.appointmentId} = ${appointments.id})`,
   timeIn: appointments.timeIn,
   timeOut: appointments.timeOut,
 };
 
-type SummaryRow = { startsAt: Date; signed: unknown; timeIn: Date | null; timeOut: Date | null } & Omit<
-  AppointmentSummary,
-  "startsAt" | "signed" | "timeIn" | "timeOut"
->;
+type SummaryRow = {
+  startsAt: Date;
+  signed: unknown;
+  draft: unknown;
+  invoiced: unknown;
+  timeIn: Date | null;
+  timeOut: Date | null;
+} & Omit<AppointmentSummary, "startsAt" | "signed" | "draft" | "invoiced" | "timeIn" | "timeOut">;
 
 function toSummary(row: SummaryRow): AppointmentSummary {
   return {
     ...row,
     startsAt: row.startsAt.toISOString(),
     signed: Boolean(row.signed),
+    draft: Boolean(row.draft),
+    invoiced: Boolean(row.invoiced),
     timeIn: row.timeIn?.toISOString() ?? null,
     timeOut: row.timeOut?.toISOString() ?? null,
   };
@@ -68,6 +79,23 @@ export async function listAppointments(range: { start: string; end: string }): P
     )
     .orderBy(asc(appointments.startsAt));
   return rows.map(toSummary);
+}
+
+/**
+ * For the reminder bar and week-strip dots: finished visits with no note yet, and notes
+ * started but not signed (spec v2 Notes to do).
+ */
+export async function getNotesToDo(): Promise<{ needNote: number; drafts: number }> {
+  const clinician = await requireClinician();
+  const [row] = await db
+    .select({
+      needNote: sql<number>`count(*) filter (where ${notes.id} is null and ${appointments.startsAt} + make_interval(mins => ${appointments.durationMinutes}) < now())::int`,
+      drafts: sql<number>`count(*) filter (where ${notes.id} is not null and ${notes.signedAt} is null)::int`,
+    })
+    .from(appointments)
+    .leftJoin(notes, eq(notes.appointmentId, appointments.id))
+    .where(eq(appointments.clinicianId, clinician.id));
+  return { needNote: row?.needNote ?? 0, drafts: row?.drafts ?? 0 };
 }
 
 /** Typo-tolerant patient search. An empty query returns the most recently added patients. */
@@ -187,6 +215,8 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
         patientId: patientRow.id,
         patientName: patientRow.fullName,
         signed: false,
+        draft: false,
+        invoiced: false,
         timeIn: null,
         timeOut: null,
       },
