@@ -19,7 +19,7 @@ export function FormField({
 }: {
   label: string;
   hint?: string;
-  error?: string | null;
+  error?: React.ReactNode;
   icon?: LucideIcon;
   input?: React.ReactNode;
 } & React.ComponentProps<typeof Input>) {

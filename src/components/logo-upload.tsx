@@ -75,7 +75,7 @@ export function LogoUpload({
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" disabled={busy} onClick={() => inputRef.current?.click()}>
-            {busy ? "Preparing…" : shown ? "Change logo" : "Add a logo"}
+            {busy ? "Preparing…" : shown ? "Change logo" : "Upload logo"}
           </Button>
           {shown && (
             <Button type="button" variant="ghost" onClick={() => onChange(null)} aria-label="Remove logo">
