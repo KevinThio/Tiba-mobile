@@ -1,7 +1,7 @@
 import "server-only";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { clinicians, practices } from "@/db/schema";
+import { clinicians, practices, reviews } from "@/db/schema";
 import { practiceLogoUrl } from "@/lib/practice-logo";
 
 /** The practice's logo URL, or null when it has none. Only checks that a logo exists; the image comes from /api/practice-logo. */
@@ -37,5 +37,14 @@ export async function pendingClinicianCount(practiceId: string) {
     .select({ n: sql<number>`count(*)::int` })
     .from(clinicians)
     .where(and(eq(clinicians.practiceId, practiceId), eq(clinicians.status, "pending")));
+  return row?.n ?? 0;
+}
+
+/** Count of patient reviews the admin hasn't opened yet. */
+export async function newReviewCount(practiceId: string) {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(reviews)
+    .where(and(eq(reviews.practiceId, practiceId), isNull(reviews.seenAt), isNull(reviews.hiddenAt)));
   return row?.n ?? 0;
 }

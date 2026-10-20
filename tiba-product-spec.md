@@ -340,10 +340,15 @@ Admins see the same information on each clinician's page (Qualifications, Educat
 - **Notifications:** clinician — new contract to sign, admin replied. Admin — clinician messaged, clinician signed; also shown on Overview and as menu badges.
 
 ## 6. Patient reviews
-- Opened from the sign-in page. No account needed.
-- Fields: practice location, star rating (required), review text (required), who they saw (optional clinician), name (optional; blank means anonymous).
-- After sending: "Your review is with the practice. Only their admin can read it."
-- Only administrators can see reviews. Clinicians never do.
+- Opened from the sign-in page (**Leave a review** in the "Are you a patient?" panel). No account needed.
+- **Finding the practice:** the patient types the practice name (matched like clinicians joining: case, spaces and punctuation don't matter). Not found: "We couldn't find "…" on Tiba. Check the name on your appointment letter or invoice, or ask the practice for their review link." Only practices with an admin take reviews.
+- **Review link:** each practice has its own link (/review?practice=…), shown with **Copy link** on the admin's Patient reviews screen. It opens the form with the practice already picked, for emails, texts or a QR code.
+- Fields: star rating (required, "Pick a star rating."), review text (required, up to 2,000 characters), who they saw (optional: Not sure, or one of the practice's active clinicians), name (optional; blank means anonymous). Practice location is added once Locations exist.
+- After sending: "Thank you · Your review is with the practice. Only their admin can read it."
+- Only administrators can see reviews. Clinicians never do. **Check reviews from patients** on the sign-in page asks for a sign-in and opens Patient reviews for an admin; a clinician sees "Only your admin can see reviews".
+- New reviews show a **New** badge the first time the admin opens Patient reviews, a count on the menu item, and "N new patient reviews" on Overview.
+- **Hiding, never deleting:** an admin can **Hide** a review (asks first: "Hide this review? It moves to Hidden reviews and stops counting towards your average. Reviews can't be deleted, so you can show it again at any time."). Hidden reviews sit in a folded **Hidden reviews (n)** section with the date hidden and **Show again**, and don't count towards the average or new-review counts. Nobody can delete a review or change what the patient wrote; a review only goes if its whole practice is removed.
+- The form is public, so it is limited to a few sends per device in ten minutes and quietly ignores bots.
 
 ## 7. Emails
 - Sent from the practice's configured email account. Each email notes that it may contain private health information.
@@ -388,7 +393,7 @@ Actions that save (sign in, sign up, sign and save, send invoice, send contract)
 | Invoices | invoice number, practice, patient, clinician, visits included, amount, currency, due date, sent date, emailed to, seen by admin, status (unpaid, paid or issue), paid date and method, issue (category, comment, flagged, resolved), history | Clinician (create), Admin (payment, issues) | Both apps |
 | Service agreements | patient, practice, sections, patient signature, admin signature, signed dates, status | Admin | Admin |
 | Contracts | number, practice, clinician, type, terms (start, length, pay, role, other), letterhead, status (draft, sent, feedback or signed), sent date, admin signature, clinician signature, message thread, seen by each side | Admin, Clinician (sign, message) | Admin, Clinician |
-| Reviews | location, clinician (optional), rating 1–5, text, name (optional), date | Patients (no account) | Admin only |
+| Reviews | practice, location (later), clinician (optional), rating 1–5, text, name (optional), date, seen by admin, hidden (date, by whom) | Patients (no account); Admin hides or shows | Admin only |
 | Notifications | practice, recipient, type (invoice sent, duplicate flag, review, unbilled 30 days, contract message, contract signed, contract sent, invoice issue), what it points to, created, read | Tiba | Admin, Clinician |
 | Billing reminders | date sent, notes included | Admin | Admin |
 
@@ -426,7 +431,7 @@ Each step builds on the one before. Section 14 has the details for each screen.
 6. **Discipline notes:** SOAP notes with measures, level rows and billing codes; evaluations and goals; progress notes and prefill; aide service plan and the aide visit lock.
 7. **Admin app:** Overview, Clinicians and profiles, Patients and duplicate review, Completed notes, Invoices (payments and issues), Insurance billing, Locations, Settings, More.
 8. **People and paperwork:** clinician Profile, Contracts (both sides), service agreements, documents and files.
-9. **Insight and patients:** Performance, Patient reviews (patient form and admin list).
+9. **Insight and patients:** Performance, Patient reviews (patient form and admin list). *Patient reviews done 21 Oct 2026.*
 
 ### Permissions
 
@@ -494,7 +499,7 @@ These patterns were built in the design project on top of the Tiba Design System
 - **Insurance billing:** marked by hand for now. Is there an insurer system to connect to?
 - **Written notes:** fixed sentence pattern or AI writing?
 - **Signature images in PDFs:** the prototype records an electronic-signature line; should the drawn signature appear too?
-- **Reviews:** how do patients reach the right practice (link, QR code)? Should admins be able to reply to or hide reviews?
+- **Reviews:** patients find the practice by name or through its review link; admins can hide but not delete reviews. Should admins be able to reply? Should the link come with a printable QR code?
 - **Currency:** sample prices show as $80.00 or KSh 8,000. Should one practice be able to bill in both currencies at once?
 - **Notifications by email:** should any in-app notification (contract to sign, invoice issue) also send an email?
 - **Billing codes:** the CPT and G codes are US codes. What do Kenyan practices use?
@@ -524,8 +529,9 @@ Taken from Tiba Prototype Desktop and Tiba Prototype (phone), 20 Oct 2026. Each 
 | Link expired | "This link has expired" · "Reset links work once, within an hour of asking. Ask for a new one and use it straight away." **Send a new link**, **Back to sign in**. |
 | Sign up | "Let's set you up" · "One account for you and your practice." Your name, Email, Password ("At least 8 characters."), Type of account as two cards: Clinician "Write notes, sign and invoice your patients." / Administrator "Run the practice: clinicians, billing, locations." Practice name (clinician hint: "Use the same name your practice admin signed up with. They'll verify your account before you can see patients."; admin hint: "Clinicians join your practice by entering this name when they sign up. You verify each one."). Admins only: Country (hint "Prices will show in US dollars ($).") and Practice logo ("It shows on invoices, notes and agreements. PNG or JPG works best."). **Create account**. "Already have an account? Sign in". |
 | Waiting for your admin | Hourglass icon · "Waiting for your admin" · "You've asked to join Reyes Therapy. Your practice admin needs to verify your account before you can see patients. We've let them know." "Signed in as … Once you're verified, we'll email you and this page opens your appointments." **Check again**, **Sign out**. Deactivated version: "Your account is turned off" · "Reyes Therapy's admin has deactivated your account, so you can't see patients for now. Your notes are kept safe. If this is a mistake, contact your practice admin." |
-| Leave a review | Back to Sign in. "How was your visit?" · "Your review goes privately to the practice. You don't need an account." Practice (location list), Your rating (stars), Your review, Who did you see? (Not sure, or a clinician; "Optional. Helps the practice thank the right person."), Your name (optional; "Leave blank to stay anonymous."). **Send review**. |
+| Leave a review | Back to Sign in. "How was your visit?" · "Your review goes privately to the practice. You don't need an account." "Which practice did you visit?" ("Type the name as it appears on your appointment letter or invoice.") **Find practice**; then the practice with **Change** (not shown when opened from the practice's review link), Your rating (five stars, with a word: Poor, Not great, Okay, Good, Excellent), Your review, Who did you see? (Not sure, or a clinician; "Optional. Helps the practice thank the right person."), Your name (optional; "Leave blank to stay anonymous."). **Send review**. (Practice location comes once Locations exist.) |
 | Review sent | "Thank you" · "Your review is with the practice. Only their admin can read it." **Back to sign in**. |
+| Only your admin can see reviews | From **Check reviews from patients** when a clinician signs in. Lock icon · "Only your admin can see reviews" · "Patient reviews go privately to Reyes Therapy's admin. Clinicians can't read them, so patients can speak freely." **Back to Tiba**. |
 
 ### Clinician app
 | Screen | Details |
@@ -573,7 +579,7 @@ Taken from Tiba Prototype Desktop and Tiba Prototype (phone), 20 Oct 2026. Each 
 | Locations | "3 locations" · Locations · **Add location**. Rows: name, address, facility type. |
 | Location profile | Back Locations. Facility type · name · **Remove location** (disabled for the last one). Address, Clinicians, Type of facility, Type of services. Files ("PDFs only, each with a short description. Download or remove them any time."; Short description, **Upload PDF**). |
 | Add location | Back Locations. "New location" · "Add a location" · **Add location**. Location name, Type of facility, Address, Type of services. "You can upload files for this location once it's added." |
-| Patient reviews | "From your patients" · Patient reviews. "4.3 · Average from 6 reviews · Only admins can see these. Patients send them from the sign-in page." Rows: stars, text, "Anonymous · Tom Alvarez · Online sessions · 11 Oct 2026", New badge. |
+| Patient reviews | "From your patients" · Patient reviews. "4.3 · Average from 6 reviews · Only admins can see these. Patients send them from the sign-in page." Rows: stars, text, "Anonymous · Tom Alvarez · 11 Oct 2026" ("Clinician not named" when the patient picked Not sure), New badge on the first visit after it arrives, **Hide** on each review. **Hidden reviews (n)**, folded, with "Hidden reviews don't count towards your average. Reviews can't be deleted." and **Show again**. **Your review link** with **Copy link**. Empty: "No reviews yet". |
 | Settings | "Your practice" · Settings · **Save changes**. Practice name, Country ("Invoices, billing and agreements show US dollars ($)."), Your name, Practice logo ("Admin accounts need a logo. It shows on invoices, notes and agreements."), Sign out. |
 | More (phone) | Practice name · More. Rows with a one-line summary each (see section 5), then **Sign out**. |
 

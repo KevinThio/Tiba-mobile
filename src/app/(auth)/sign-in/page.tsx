@@ -1,5 +1,6 @@
 "use client";
 
+import { MessageSquareHeart, PenLine, Star } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -9,6 +10,7 @@ import { FormField } from "@/components/form-field";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
+import { safeNextPath } from "@/lib/safe-next";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -35,7 +37,9 @@ export default function SignInPage() {
     }
     // With 2FA turned on, the password alone is not enough: ask for the code next.
     const needsCode = "twoFactorRedirect" in data && data.twoFactorRedirect;
-    router.push(needsCode ? "/sign-in/two-factor" : "/");
+    // Read at submit time (not useSearchParams) so the page can stay static.
+    const next = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+    router.push(needsCode ? "/sign-in/two-factor" : (next ?? "/"));
   }
 
   return (
@@ -64,9 +68,29 @@ export default function SignInPage() {
       <p className="mt-8 text-center text-muted-foreground">
         New to Tiba?{" "}
         <Link href="/sign-up" className="font-medium text-primary underline underline-offset-4">
-          Set up your practice
+          Create an account
         </Link>
       </p>
+
+      <section aria-labelledby="patients-heading" className="mt-8 grid gap-3 rounded-lg bg-muted p-5">
+        <h2 id="patients-heading" className="flex items-center gap-2 font-sans text-base font-semibold text-foreground">
+          <MessageSquareHeart className="size-5 text-primary" aria-hidden />
+          Are you a patient?
+        </h2>
+        <p className="text-small text-muted-foreground">
+          Tell the practice how your visits went. Only the practice admin reads reviews.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" nativeButton={false} render={<Link href="/review" />}>
+            <PenLine aria-hidden />
+            Leave a review
+          </Button>
+          <Button variant="ghost" nativeButton={false} render={<Link href="/reviews" />}>
+            <Star aria-hidden />
+            Check reviews from patients
+          </Button>
+        </div>
+      </section>
     </>
   );
 }

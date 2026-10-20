@@ -57,6 +57,27 @@
       "when": 1792513869182,
       "tag": "0007_drop_clinician_logo",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792530988749,
+      "tag": "0008_patient_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792532200850,
+      "tag": "0009_hide_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792532206535,
+      "tag": "0010_protect_reviews",
+      "breakpoints": true
     }
   ]
 }

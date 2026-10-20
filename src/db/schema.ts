@@ -312,3 +312,35 @@ export const invoiceItems = pgTable(
   },
   (t) => [primaryKey({ columns: [t.invoiceId, t.appointmentId] })],
 );
+
+// ---------------------------------------------------------------------------
+// Patient reviews (spec v2 section 6). Patients send them without an account from
+// /review; only the practice admin reads them, never clinicians.
+// ---------------------------------------------------------------------------
+
+export const reviews = pgTable(
+  "reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    // "Who did you see?" is optional. Kept if the clinician's account goes.
+    clinicianId: text("clinician_id").references(() => clinicians.id, { onDelete: "set null" }),
+    rating: integer("rating").notNull(),
+    text: text("text").notNull(),
+    // Blank means anonymous.
+    name: text("name"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // When the admin first opened Patient reviews after it arrived; null shows it as New.
+    seenAt: timestamp("seen_at", { withTimezone: true }),
+    // Admins can hide a review (it leaves the list and the average) but never delete it
+    // or change what the patient wrote; drizzle/0010_protect_reviews.sql enforces that.
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    hiddenById: text("hidden_by_id").references(() => clinicians.id, { onDelete: "set null" }),
+  },
+  (t) => [
+    check("reviews_rating_check", sql`${t.rating} between 1 and 5`),
+    index("reviews_practice_created_idx").on(t.practiceId, t.createdAt),
+  ],
+);

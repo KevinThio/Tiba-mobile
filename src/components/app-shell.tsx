@@ -181,7 +181,7 @@ export function AppShell({
   );
 }
 
-/** Small lilac count, e.g. clinicians waiting to be verified. */
+/** Small lilac count, e.g. clinicians waiting to be verified or new reviews. */
 function CountBadge({ count, className }: { count: number; className?: string }) {
   return (
     <span
@@ -191,7 +191,6 @@ function CountBadge({ count, className }: { count: number; className?: string })
       )}
     >
       {count}
-      <span className="sr-only"> waiting</span>
     </span>
   );
 }
