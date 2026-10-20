@@ -23,6 +23,7 @@ There is no test runner yet.
 ## Planning documents
 
 - [tiba-product-spec.md](tiba-product-spec.md): the **Version 2** spec (screens, data, rules, open questions). It is the source of truth for features. Items marked "kept from v1.1" were built before v2 and stay in scope.
+- [docs/](docs/): the design files the spec was written from (20 Oct 2026): `Tiba-Product-Spec.html` (the spec as designed), `Tiba-Prototype-Desktop.html` and `Tiba-Prototype.html` (phone). They are self-contained offline bundles: open them in a browser to click through every clinician and admin screen. When the spec and a prototype disagree on layout or copy, the prototype wins (spec section 11).
 - [tiba-brand-concept.md](tiba-brand-concept.md): voice and tone. Colours and type come from the design-system tokens in `globals.css`.
 
 ## What Tiba is
