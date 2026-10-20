@@ -74,6 +74,7 @@ A responsive web app, installable on phones as a PWA (no native app), where clin
 
 **Auth** ([src/lib/auth.ts](src/lib/auth.ts)):
 - Email and password with at least 8 characters (spec v2), plus optional TOTP 2FA.
+- **Sign in** tells an unknown email apart from a wrong password: after `INVALID_EMAIL_OR_PASSWORD` it calls `explainSignInFailure` (`(auth)/sign-in/actions.ts`, rate-limited per IP), as the spec asks. "Keep me signed in" is Better Auth's `rememberMe` (sessions still end after 30 idle minutes).
 - **Forgot password:** `/forgot-password` calls `requestPasswordResetLink` ([actions.ts](src/app/(auth)/forgot-password/actions.ts)), which refuses unregistered emails (a deliberate spec choice; Better Auth's own endpoint answers the same either way), allows one link per account per minute (checked against `verifications` rows `reset-password:*`), then calls `auth.api.requestPasswordReset`. `sendResetPassword` in `auth.ts` emails the link (1 hour, `RESET_LINK_SECONDS`). The link goes through `/api/auth/reset-password/:token`, which redirects to `/reset-password?token=…` (or `?error=INVALID_TOKEN`); that page calls `authClient.resetPassword`. `revokeSessionsOnPasswordReset` signs the account out everywhere. Both pages are public, so they're excluded in the `proxy.ts` matcher.
 - **Account fields:** `practiceName`, `role` and `country` come from the sign-up form; `practiceId` and `status` are `input: false` and set only by `placeNewAccount` (the `databaseHooks.user.create.before` hook), which creates or joins the practice and throws `APIError` codes (`PRACTICE_TAKEN`, `PRACTICE_NOT_FOUND`, `PRACTICE_HAS_NO_ADMIN`) that the sign-up page turns into copy. The `create.after` hook emails the admin about a waiting clinician.
 - **Protected fields:** the `update.before` hook refuses any Better Auth update touching `role`, `status`, `practiceId`, `practiceName` or `country` (a hook's returned data is merged into the original, so a field can't just be dropped). Tiba changes them with Drizzle directly: `setClinicianStatus` in `src/app/admin/clinicians/actions.ts` (admin only, same practice, deletes the clinician's sessions on deactivation) and `updatePractice`. A trigger in [drizzle/0005_lock_account_role.sql](drizzle/0005_lock_account_role.sql) also blocks role changes in the database.
@@ -115,7 +116,9 @@ A responsive web app, installable on phones as a PWA (no native app), where clin
   - `PracticeMark` (logo or initials in a frame, plus `initialsOf`) and `SignOutButton` (`iconOnly` for the side menu).
   - `EmptyState`: friendly "nothing here yet" panels.
   - `FormField`: a label, an input and an optional `hint`. Pass `input` to use another control.
-  - `PasswordInput`: has a show/hide toggle.
+  - `PasswordInput`: has a show/hide toggle and an optional leading `icon`.
+  - `FormField` also takes `icon` (leading icon) and `error` (a field error under the field that replaces the hint and sets `aria-invalid`).
+  - `Switch` (`src/components/ui/switch.tsx`, Base UI): the design-system toggle, 48 × 28px. Wrap it in a `<label>` with its text.
   - `FormAlert`: the form-level error box.
   - `LogoUpload`: picks and resizes the practice logo. It's used on sign-up and in `PracticeDetailsDialog`, which opens from Settings.
   - `Logo`.

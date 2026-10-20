@@ -9,7 +9,8 @@ const HIGHLIGHTS = [
 ];
 
 /**
- * Sign-in, sign-up and 2FA. Desktop: brand panel on the left, form on the right.
+ * Sign-in, sign-up, 2FA, password reset, the waiting page and patient reviews.
+ * Desktop: brand panel on the left, form on the right.
  * Phone: just the logo and the form, so the keyboard has room.
  */
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -49,16 +50,20 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
           <p className="relative flex items-center gap-2 text-sm text-muted-foreground">
             <ShieldCheck className="size-4 text-primary" aria-hidden />
-            Private by design. Only you can see your patients&apos; records.
+            Private by design. Patient records stay inside your practice.
           </p>
         </div>
       </aside>
 
-      <main className="flex flex-1 flex-col px-4 py-10 sm:px-8">
+      <main className="flex flex-1 flex-col px-5 py-10 sm:px-8">
         <Link href="/sign-in" aria-label="Tiba" className="mx-auto lg:hidden">
           <Logo />
         </Link>
         <div className="mx-auto flex w-full max-w-form flex-1 flex-col justify-center py-10">{children}</div>
+        <p className="mx-auto flex max-w-form items-center gap-2 text-caption text-muted-foreground">
+          <ShieldCheck className="size-4 shrink-0 text-primary" aria-hidden />
+          Your patients&apos; notes are private and stored safely.
+        </p>
       </main>
     </div>
   );
