@@ -242,7 +242,7 @@ The top shows the practice logo and name; the bottom shows the admin name and Si
 | New contract | Create or update a contract with a live preview on the letterhead. "Save draft" or "Sign and send". |
 | Contract | The contract, its status and the message thread. Continue editing (draft), Update and resend (sent or message), Download PDF (signed). |
 | Locations | Every location and its address. Add location. |
-| Add location | Name, type of facility (Outpatient clinic, Community centre, Hospital-based, Telehealth, Home visits), address (optional for online) and at least one service (Individual therapy, Couples therapy, Family therapy, Assessment, Group therapy, Follow-up call). Files can be added once it exists. |
+| Add location | Name, type of facility (Outpatient clinic, Community centre, Hospital-based, Telehealth, Home visits; pick one), address (required, except Telehealth) and at least one service (Individual therapy, Couples therapy, Family therapy, Assessment, Group therapy, Follow-up call, plus Physical therapy, Occupational therapy, Speech therapy, Skilled nursing, Home health aide for discipline practices). Two locations in a practice can't share a name. Files can be added once it exists. |
 | Location profile | Address and clinicians there, type of facility, type of services, and PDF files with a short description that can be downloaded or removed. Remove location asks to confirm; clinicians based there are moved to a location you pick. The last location can't be removed. |
 | Patient reviews | Average rating and every review, newest first, with the clinician named if the patient picked one. Admin only. |
 | Settings | Practice name, country (sets the currency), admin name, practice logo (required), contract letterhead details (address, phone, email), Sign out. "Save changes". |
@@ -429,7 +429,7 @@ Each step builds on the one before. Section 14 has the details for each screen.
 4. **Billing:** Invoice from signed visits (due date, currency), merged with the existing Invoices screen.
 5. **Settings and account:** discipline, patients-sign toggle, country, visit fee; Notifications.
 6. **Discipline notes:** SOAP notes with measures, level rows and billing codes; evaluations and goals; progress notes and prefill; aide service plan and the aide visit lock.
-7. **Admin app:** Overview, Clinicians and profiles, Patients and duplicate review, Completed notes, Invoices (payments and issues), Insurance billing, Locations, Settings, More. *Clinicians, Patients (list, Add patient with duplicate check, Discharge and Reactivate), Appointments and Patient reviews done 21 Oct 2026; patient details and duplicate review screens still to come.*
+7. **Admin app:** Overview, Clinicians and profiles, Patients and duplicate review, Completed notes, Invoices (payments and issues), Insurance billing, Locations, Settings, More. *Clinicians, Patients (list, Add patient with duplicate check, Discharge and Reactivate), Appointments, Locations (list and Add location) and Patient reviews done 21 Oct 2026; location profile (files, remove), patient details and duplicate review screens still to come.*
 8. **People and paperwork:** clinician Profile, Contracts (both sides), service agreements, documents and files.
 9. **Insight and patients:** Performance, Patient reviews (patient form and admin list). *Patient reviews done 21 Oct 2026.*
 

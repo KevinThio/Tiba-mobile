@@ -362,3 +362,29 @@ export const reviews = pgTable(
     index("reviews_practice_created_idx").on(t.practiceId, t.createdAt),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Locations (spec v2 admin Locations): where the practice sees patients.
+// Options for facility and services live in src/lib/location-options.ts.
+// ---------------------------------------------------------------------------
+
+export const locations = pgTable(
+  "locations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    facility: text("facility").notNull(),
+    // Optional only for Telehealth (no building to visit).
+    address: text("address"),
+    services: text("services").array().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("locations_practice_id_idx").on(t.practiceId),
+    check("locations_has_service", sql`cardinality(${t.services}) > 0`),
+  ],
+);
