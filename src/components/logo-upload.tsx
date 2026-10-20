@@ -8,7 +8,7 @@ import { LOGO_MAX_DATA_URL_LENGTH, LOGO_MAX_PX } from "@/lib/practice-logo";
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 /**
- * Optional practice logo picker. Resizes the image in the browser and hands back a
+ * Practice logo picker (optional for clinicians, required for admins). Resizes the image in the browser and hands back a
  * PNG data URL (JPEG if the PNG would be too big), or null when removed.
  * `previewUrl` shows an already-saved logo.
  */
@@ -16,10 +16,18 @@ export function LogoUpload({
   value,
   previewUrl,
   onChange,
+  required = false,
+  hint = "Shown with your practice name at the top of your visit notes.",
+  missing,
 }: {
   value: string | null | undefined;
   previewUrl?: string | null;
   onChange: (dataUrl: string | null) => void;
+  /** Admins must add a logo; drops "(optional)" from the label. */
+  required?: boolean;
+  hint?: string;
+  /** Message shown when the form was sent without a required logo. */
+  missing?: string | null;
 }) {
   const inputId = useId();
   const hintId = `${inputId}-hint`;
@@ -54,10 +62,10 @@ export function LogoUpload({
   return (
     <div className="grid gap-2">
       <label htmlFor={inputId} className="text-sm font-medium">
-        Practice logo (optional)
+        {required ? "Practice logo" : "Practice logo (optional)"}
       </label>
       <div className="flex items-center gap-4">
-        <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-card">
+        <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed bg-card">
           {shown ? (
             // eslint-disable-next-line @next/next/no-img-element -- data URL or private route, not optimisable
             <img src={shown} alt="Your practice logo" className="max-h-full max-w-full object-contain p-1.5" />
@@ -86,13 +94,13 @@ export function LogoUpload({
         className="sr-only"
         onChange={(e) => onFile(e.target.files?.[0])}
       />
-      {error ? (
+      {error || missing ? (
         <p role="alert" className="text-sm text-destructive">
-          {error}
+          {error ?? missing}
         </p>
       ) : (
         <p id={hintId} className="text-sm text-muted-foreground">
-          Shown with your practice name at the top of your visit notes.
+          {hint}
         </p>
       )}
     </div>

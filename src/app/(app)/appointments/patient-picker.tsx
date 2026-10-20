@@ -22,7 +22,7 @@ export function PatientPicker({ value, onChange }: { value: PatientChoice; onCha
   return (
     <fieldset className="grid gap-3">
       <legend className="mb-2 text-sm font-medium">Patient</legend>
-      <div role="radiogroup" aria-label="Patient" className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+      <div role="radiogroup" aria-label="Patient" className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
         <ModeButton active={mode === "existing"} onClick={() => onChange(null)}>
           <Search className="size-4" aria-hidden /> Find a patient
         </ModeButton>
@@ -43,7 +43,7 @@ function ModeButton({ active, onClick, children }: { active: boolean; onClick: (
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        "flex h-10 items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "flex h-10 items-center justify-center gap-2 rounded-sm text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring",
         active ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground",
       )}
     >
@@ -94,7 +94,7 @@ function PatientSearch({ value, onChange }: { value: PatientChoice; onChange: (c
           {query ? "No one by that name yet. Choose “New patient” to add them." : "No patients yet. Choose “New patient” to add your first."}
         </p>
       ) : (
-        <ul role="listbox" aria-label="Patients" className="grid max-h-56 gap-1 overflow-y-auto rounded-xl border bg-card p-1">
+        <ul role="listbox" aria-label="Patients" className="grid max-h-56 gap-1 overflow-y-auto rounded-md border bg-card p-1">
           {!query && <li className="px-3 pt-1 pb-0.5 text-xs font-medium text-muted-foreground">Recently added</li>}
           {results.map((p) => {
             const isSelected = selected?.id === p.id;
@@ -104,7 +104,7 @@ function PatientSearch({ value, onChange }: { value: PatientChoice; onChange: (c
                   type="button"
                   onClick={() => onChange({ kind: "existing", patient: p })}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "flex w-full items-center justify-between gap-3 rounded-sm px-3 py-2.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring",
                     isSelected ? "bg-secondary text-primary" : "hover:bg-muted",
                   )}
                 >
@@ -127,7 +127,7 @@ function PatientSearch({ value, onChange }: { value: PatientChoice; onChange: (c
 
 function NewPatientFields() {
   return (
-    <div className="grid gap-4 rounded-xl border border-dashed p-4">
+    <div className="grid gap-4 rounded-md border border-dashed p-4">
       <FormField label="Full name" name="newPatient.fullName" autoComplete="off" required />
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField label="Date of birth" name="newPatient.dateOfBirth" type="date" max={toDateKey(new Date())} required />

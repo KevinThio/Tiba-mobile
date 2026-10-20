@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { clinicians } from "@/db/schema";
-import { requireClinician } from "@/lib/auth";
+import { requireAccount } from "@/lib/auth";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
 
 const schema = z.object({
@@ -17,11 +17,14 @@ const schema = z.object({
 export type PracticeUpdate = z.input<typeof schema>;
 
 export async function updatePractice(input: PracticeUpdate): Promise<{ ok: true } | { ok: false; message: string }> {
-  const clinician = await requireClinician();
+  const account = await requireAccount();
   const parsed = schema.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Please check the details." };
   const { practiceName, logo } = parsed.data;
 
+  if (logo === null && account.role === "admin") {
+    return { ok: false, message: "Admins need to add the practice logo. Choose a new one instead of removing it." };
+  }
   if (logo && !parseLogoDataUrl(logo)) {
     return { ok: false, message: "We couldn't use that image. Please try a PNG or JPG file." };
   }
@@ -33,7 +36,7 @@ export async function updatePractice(input: PracticeUpdate): Promise<{ ok: true 
       ...(logo !== undefined && { practiceLogo: logo }),
       updatedAt: new Date(),
     })
-    .where(eq(clinicians.id, clinician.id));
+    .where(eq(clinicians.id, account.id));
 
   revalidatePath("/", "layout");
   return { ok: true };

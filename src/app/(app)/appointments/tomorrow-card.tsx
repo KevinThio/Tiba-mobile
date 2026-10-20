@@ -55,9 +55,9 @@ export function TomorrowCard({ refreshKey }: { refreshKey: number }) {
   }
 
   return (
-    <section aria-labelledby="tomorrow-heading" className="grid gap-4 rounded-3xl border bg-accent/60 p-5">
+    <section aria-labelledby="tomorrow-heading" className="grid gap-4 rounded-lg border bg-accent/60 p-5">
       <div className="flex items-start gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-card text-primary">
           <BellRing className="size-5" aria-hidden />
         </span>
         <div className="min-w-0">

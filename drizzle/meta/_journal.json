@@ -29,6 +29,20 @@
       "when": 1792396907819,
       "tag": "0003_reminders_times_invoice_email",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792511207263,
+      "tag": "0004_account_role_country",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792511658594,
+      "tag": "0005_lock_account_role",
+      "breakpoints": true
     }
   ]
 }

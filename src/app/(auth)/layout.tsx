@@ -38,7 +38,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
             <ul className="grid gap-4">
               {HIGHLIGHTS.map(({ icon: Icon, text }) => (
                 <li key={text} className="flex items-center gap-3 text-lg">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary shadow-xs">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-card text-primary shadow-xs">
                     <Icon className="size-5" aria-hidden />
                   </span>
                   {text}
@@ -58,7 +58,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <Link href="/sign-in" aria-label="Tiba" className="mx-auto lg:hidden">
           <Logo />
         </Link>
-        <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">{children}</div>
+        <div className="mx-auto flex w-full max-w-form flex-1 flex-col justify-center py-10">{children}</div>
       </main>
     </div>
   );

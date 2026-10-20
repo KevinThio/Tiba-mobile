@@ -10,10 +10,10 @@ import { parseLogoDataUrl } from "@/lib/practice-logo";
 // Times print in the clinician's time zone (saved from their browser), else UTC.
 
 const FERN = "#2D6A4F";
-const FERN_PALE = "#EAF3EE";
+const FERN_PALE = "#E6F2EB";
 const INK = "#25282D";
-const MUTED = "#5B6169";
-const BORDER = "#DDE6E0";
+const MUTED = "#686D76";
+const BORDER = "#DFE0E5";
 
 const s = StyleSheet.create({
   page: { padding: 48, fontFamily: "Helvetica", fontSize: 10, color: INK },

@@ -26,7 +26,7 @@ export default function TwoFactorPage() {
       setError("That code didn't work. Codes change every 30 seconds, so try the newest one.");
       return;
     }
-    router.push("/appointments");
+    router.push("/");
   }
 
   return (

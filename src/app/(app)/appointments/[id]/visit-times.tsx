@@ -73,7 +73,7 @@ export function VisitTimes({
         {rows.map(({ field, label, icon: Icon, now }) => {
           const inputId = `${field}-input`;
           return (
-            <div key={field} className="grid gap-2 rounded-2xl border p-4">
+            <div key={field} className="grid gap-2 rounded-lg border p-4">
               <label htmlFor={inputId} className="text-sm font-medium">
                 {label}
               </label>

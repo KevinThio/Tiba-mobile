@@ -90,7 +90,7 @@ function EmailForm({
   return (
     <form onSubmit={submit} className="grid gap-5">
       {summary && (
-        <dl className="grid grid-cols-3 gap-3 rounded-2xl bg-muted p-4 text-sm">
+        <dl className="grid grid-cols-3 gap-3 rounded-lg bg-muted p-4 text-sm">
           <div className="col-span-3 sm:col-span-1">
             <dt className="text-muted-foreground">Patient</dt>
             <dd className="font-medium">{summary.patientName}</dd>

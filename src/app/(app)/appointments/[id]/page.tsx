@@ -45,7 +45,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
         <ArrowLeft className="size-4" aria-hidden /> Appointments
       </Link>
 
-      <article className="mx-auto grid w-full max-w-3xl gap-6 rounded-3xl border bg-card p-5 shadow-xs sm:p-10">
+      <article className="mx-auto grid w-full max-w-3xl gap-6 rounded-lg border bg-card p-5 shadow-xs sm:p-10">
         <NoteLetterhead
           practiceName={clinician.practiceName}
           clinicianName={clinician.name}
@@ -57,7 +57,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
           <p className="text-muted-foreground">{visit.typeOfCare}</p>
         </div>
 
-        <dl className="grid gap-4 rounded-2xl bg-muted/60 p-4 sm:grid-cols-3">
+        <dl className="grid gap-4 rounded-lg bg-muted/60 p-4 sm:grid-cols-3">
           <Detail label="Patient">
             {visit.patientName}
             <span className="text-muted-foreground"> · {ageFrom(visit.dateOfBirth)} years</span>
@@ -87,7 +87,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
           />
         )}
 
-        <div className="rounded-2xl border border-dashed px-5 py-12 text-center text-muted-foreground">
+        <div className="rounded-lg border border-dashed px-5 py-12 text-center text-muted-foreground">
           Writing and signing the note is coming soon.
         </div>
 

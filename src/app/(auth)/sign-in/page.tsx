@@ -35,12 +35,12 @@ export default function SignInPage() {
     }
     // With 2FA turned on, the password alone is not enough: ask for the code next.
     const needsCode = "twoFactorRedirect" in data && data.twoFactorRedirect;
-    router.push(needsCode ? "/sign-in/two-factor" : "/appointments");
+    router.push(needsCode ? "/sign-in/two-factor" : "/");
   }
 
   return (
     <>
-      <AuthHeading title="Welcome back">Sign in to see today&apos;s appointments.</AuthHeading>
+      <AuthHeading title="Welcome back">Sign in to your practice.</AuthHeading>
       <form onSubmit={onSubmit} className="grid gap-5">
         <FormField label="Email" name="email" type="email" autoComplete="email" required />
         <FormField

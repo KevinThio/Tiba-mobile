@@ -1,90 +1,157 @@
 "use client";
 
-import { CircleUserRound, LogOut } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Logo } from "@/components/logo";
-import { NAV_ITEMS, isActive } from "@/components/nav-items";
-import { PracticeDetailsDialog } from "@/components/practice-details-dialog";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { authClient } from "@/lib/auth-client";
+import {
+  ADMIN_NAV_GROUPS,
+  ADMIN_TAB_ITEMS,
+  NAV_GROUPS,
+  TAB_ITEMS,
+  isActive,
+  type NavGroup,
+  type TabItem,
+} from "@/components/nav-items";
+import { PracticeMark } from "@/components/practice-mark";
+import { SignOutButton } from "@/components/sign-out-button";
 import { cn } from "@/lib/utils";
 
-type Clinician = { name: string; practiceName: string; email: string; logoUrl: string | null };
+// Navigation lives here (not in props) because icons are components, which can't be
+// passed from a server layout to this client component.
+const APPS: Record<"clinician" | "admin", { nav: NavGroup[]; tabs: TabItem[]; homeHref: string; accountHref: string }> = {
+  clinician: { nav: NAV_GROUPS, tabs: TAB_ITEMS, homeHref: "/appointments", accountHref: "/settings" },
+  admin: { nav: ADMIN_NAV_GROUPS, tabs: ADMIN_TAB_ITEMS, homeHref: "/admin", accountHref: "/admin/settings" },
+};
+
+export type ShellIdentity = {
+  /** Bold line in the side menu footer, e.g. the person's name. */
+  title: string;
+  /** Second line, e.g. the practice name or "Administrator". */
+  subtitle: string;
+  /** Name whose initials show when there is no logo. */
+  markName: string;
+  logoUrl: string | null;
+};
 
 /**
- * Signed-in layout. Desktop (md and up): fixed sidebar on the left.
+ * Signed-in layout for both apps. Desktop (md and up): fixed side menu on the left.
  * Phone: slim top bar, content, and a bottom tab bar within thumb reach.
+ * `practiceBrand` swaps the Tiba logo at the top of the side menu for the practice
+ * logo and name (the admin app does this).
  */
-export function AppShell({ clinician, children }: { clinician: Clinician; children: React.ReactNode }) {
+export function AppShell({
+  app,
+  user,
+  practiceBrand,
+  children,
+}: {
+  app: "clinician" | "admin";
+  user: ShellIdentity;
+  practiceBrand?: { name: string; logoUrl: string | null; caption: string };
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
+  const { nav, tabs, homeHref, accountHref } = APPS[app];
 
   return (
     <div className="flex min-h-dvh flex-1">
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r bg-card md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border-subtle bg-card md:flex">
         <div className="px-6 py-6">
-          <Link href="/appointments" aria-label="Tiba home">
-            <Logo />
+          <Link href={homeHref} aria-label="Home" className="block rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring">
+            {practiceBrand ? (
+              <span className="flex min-w-0 items-center gap-3">
+                <PracticeMark practiceName={practiceBrand.name} logoUrl={practiceBrand.logoUrl} />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold">{practiceBrand.name}</span>
+                  <span className="block truncate text-small text-muted-foreground">{practiceBrand.caption}</span>
+                </span>
+              </span>
+            ) : (
+              <Logo />
+            )}
           </Link>
         </div>
-        <nav aria-label="Main" className="flex-1 px-3">
-          <ul className="grid gap-1">
-            {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-              const active = isActive(pathname, href);
-              return (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex h-11 items-center gap-3 rounded-xl px-3 text-base font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                      active ? "bg-secondary text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="size-5" aria-hidden />
-                    {label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 pb-4">
+          {nav.map((group, i) => (
+            <div key={group.label ?? i} className={cn(i > 0 && "mt-5")}>
+              {group.label && (
+                <p className="mb-1 px-4 text-overline font-semibold text-muted-foreground uppercase">{group.label}</p>
+              )}
+              <ul className="grid gap-1">
+                {group.items.map(({ href, label, icon: Icon, exact }) => {
+                  const active = isActive(pathname, href, exact);
+                  return (
+                    <li key={href}>
+                      <Link
+                        href={href}
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                          "flex h-11 items-center gap-3 rounded-full px-4 text-base font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring",
+                          active ? "bg-secondary text-primary" : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        <Icon className="size-5" aria-hidden />
+                        {label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
-        <div className="grid gap-1 border-t p-4">
-          <PracticeIdentity clinician={clinician} />
-          <PracticeDetailsDialog
-            practiceName={clinician.practiceName}
-            logoUrl={clinician.logoUrl}
-            triggerClassName="mt-2 w-full justify-start"
-          />
-          <SignOutButton className="w-full justify-start" />
+        <div className="flex items-center gap-2 border-t border-border-subtle p-4">
+          <Link
+            href={accountHref}
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring"
+          >
+            <PracticeMark practiceName={user.markName} logoUrl={user.logoUrl} />
+            <span className="min-w-0 text-left">
+              <span className="block truncate text-sm font-semibold">{user.title}</span>
+              <span className="block truncate text-sm text-muted-foreground">{user.subtitle}</span>
+            </span>
+          </Link>
+          <SignOutButton iconOnly />
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-card/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur md:hidden">
-          <Link href="/appointments" aria-label="Tiba home">
-            <Logo />
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border-subtle bg-card/95 px-5 pt-[env(safe-area-inset-top)] backdrop-blur md:hidden">
+          <Link href={homeHref} aria-label="Home" className="min-w-0 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring">
+            {practiceBrand ? (
+              <span className="flex min-w-0 items-center gap-2">
+                <PracticeMark practiceName={practiceBrand.name} logoUrl={practiceBrand.logoUrl} className="size-9" />
+                <span className="truncate font-semibold">{practiceBrand.name}</span>
+              </span>
+            ) : (
+              <Logo />
+            )}
           </Link>
-          <AccountSheet clinician={clinician} />
+          <Link
+            href={accountHref}
+            aria-label="Your account"
+            className="shrink-0 rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring"
+          >
+            <PracticeMark practiceName={user.title} logoUrl={null} className="size-10 rounded-full" />
+          </Link>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 sm:px-6 md:px-10 md:py-10">{children}</main>
+        <main className="mx-auto w-full max-w-content flex-1 px-5 pt-6 pb-28 md:px-10 md:py-10">{children}</main>
 
         <nav
           aria-label="Main"
-          className="fixed inset-x-0 bottom-0 z-30 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-30 bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-up backdrop-blur md:hidden"
         >
-          <ul className="mx-auto grid max-w-md grid-cols-3">
-            {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-              const active = isActive(pathname, href);
+          <ul className="mx-auto grid h-[72px] max-w-md grid-cols-4 px-2 pt-1.5 pb-2.5">
+            {tabs.map(({ href, label, icon: Icon, exact, also = [] }) => {
+              const active = isActive(pathname, href, exact) || also.some((h) => isActive(pathname, h));
               return (
                 <li key={href}>
                   <Link
                     href={href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium outline-none focus-visible:bg-muted",
+                      "flex h-full flex-col items-center justify-center gap-1 rounded-md text-xs font-semibold outline-none focus-visible:bg-muted",
                       active ? "text-primary" : "text-muted-foreground",
                     )}
                   >
@@ -105,74 +172,5 @@ export function AppShell({ clinician, children }: { clinician: Clinician; childr
         </nav>
       </div>
     </div>
-  );
-}
-
-function AccountSheet({ clinician }: { clinician: Clinician }) {
-  return (
-    <Sheet>
-      <SheetTrigger render={<Button variant="ghost" size="icon" aria-label="Your account" />}>
-        <CircleUserRound className="size-6" />
-      </SheetTrigger>
-      <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-        <SheetHeader>
-          <SheetTitle className="sr-only">Your account</SheetTitle>
-          <SheetDescription className="sr-only">Your practice details and sign out.</SheetDescription>
-          <PracticeIdentity clinician={clinician} showEmail />
-        </SheetHeader>
-        <div className="grid gap-2 px-4">
-          <PracticeDetailsDialog
-            practiceName={clinician.practiceName}
-            logoUrl={clinician.logoUrl}
-            triggerClassName="w-full border border-border"
-          />
-          <SignOutButton variant="outline" className="w-full" />
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-/** Practice logo (or initials) beside the clinician and practice names. */
-function PracticeIdentity({ clinician, showEmail = false }: { clinician: Clinician; showEmail?: boolean }) {
-  const initials = clinician.practiceName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join("");
-  return (
-    <div className="flex min-w-0 items-center gap-3">
-      <span className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-card">
-        {clinician.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- private route, not optimisable
-          <img src={clinician.logoUrl} alt="" className="max-h-full max-w-full object-contain p-1" />
-        ) : (
-          <span className="font-heading text-sm text-primary" aria-hidden>
-            {initials}
-          </span>
-        )}
-      </span>
-      <span className="min-w-0 text-left">
-        <span className="block truncate text-sm font-medium">{clinician.name}</span>
-        <span className="block truncate text-sm text-muted-foreground">{clinician.practiceName}</span>
-        {showEmail && <span className="block truncate text-sm text-muted-foreground">{clinician.email}</span>}
-      </span>
-    </div>
-  );
-}
-
-function SignOutButton({ className, variant = "ghost" }: { className?: string; variant?: "ghost" | "outline" }) {
-  const router = useRouter();
-
-  async function signOut() {
-    await authClient.signOut();
-    router.push("/sign-in");
-  }
-
-  return (
-    <Button variant={variant} className={className} onClick={signOut}>
-      <LogOut className="size-4" aria-hidden />
-      Sign out
-    </Button>
   );
 }

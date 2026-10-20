@@ -122,7 +122,7 @@ export function InvoicesView() {
                 aria-checked={period === p}
                 onClick={() => changePeriod(p)}
                 className={cn(
-                  "h-10 rounded-full border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "h-10 rounded-full border px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring",
                   period === p ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted",
                 )}
               >
@@ -144,7 +144,7 @@ export function InvoicesView() {
         </div>
 
         {visits === null ? (
-          <p className="rounded-3xl border bg-card p-8 text-center text-muted-foreground">Loading your visits…</p>
+          <p className="rounded-lg border bg-card p-8 text-center text-muted-foreground">Loading your visits…</p>
         ) : shown.length === 0 ? (
           <EmptyState icon={ReceiptText} title={query ? "No visits for that name" : "No visits in this period"}>
             {query ? "Try another name, or a longer period." : "Try a longer period, or book visits from Appointments."}
@@ -162,7 +162,7 @@ export function InvoicesView() {
                   <label
                     htmlFor={checkboxId}
                     className={cn(
-                      "flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors",
+                      "flex items-center gap-4 rounded-lg border bg-card p-4 transition-colors",
                       selected.has(v.id) && "border-primary/50 bg-secondary/50",
                       disabled ? "opacity-60" : "cursor-pointer hover:bg-muted/60",
                     )}
@@ -208,8 +208,8 @@ export function InvoicesView() {
         <div
           role="region"
           aria-label="Selected visits"
-          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t bg-card/95 px-4 py-3 shadow-lg backdrop-blur md:sticky md:bottom-6 md:rounded-2xl md:border md:px-5">
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2">
+          className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 border-t bg-card/95 px-4 py-3 shadow-lg backdrop-blur md:sticky md:bottom-6 md:rounded-lg md:border md:px-5">
+          <div className="mx-auto flex max-w-content flex-wrap items-center gap-x-4 gap-y-2">
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{patient.name}</p>
               <p className="text-sm text-muted-foreground">
@@ -248,7 +248,7 @@ export function InvoicesView() {
         ) : (
           <ul className="grid grid-cols-1 gap-2">
             {invoices.map((inv) => (
-              <li key={inv.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border bg-card p-4">
+              <li key={inv.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card p-4">
                 <div className="w-16 shrink-0 font-heading text-lg text-primary">{label(inv.number)}</div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{inv.patientName}</p>

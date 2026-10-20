@@ -25,6 +25,11 @@ export const clinicians = pgTable("clinicians", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   practiceName: text("practice_name").notNull(),
+  // Spec v2 account type: "clinician" writes notes; "admin" runs the practice and never writes notes.
+  // Set at sign-up only (src/lib/auth.ts strips it from updates).
+  role: text("role", { enum: ["clinician", "admin"] }).notNull().default("clinician"),
+  // Practice country: "US" (US dollars) or "KE" (Kenyan shillings). Sets the currency.
+  country: text("country", { enum: ["US", "KE"] }).notNull().default("US"),
   // Optional practice logo for the note letterhead: a PNG/JPEG data URL, resized in the
   // browser and checked by parseLogoDataUrl. Not a Better Auth field, so it never rides
   // along in the session; it's served by /api/practice-logo.
@@ -42,7 +47,10 @@ export const clinicians = pgTable("clinicians", {
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  check("clinicians_role_check", sql`${t.role} in ('clinician', 'admin')`),
+  check("clinicians_country_check", sql`${t.country} in ('US', 'KE')`),
+]);
 
 export const sessions = pgTable(
   "sessions",

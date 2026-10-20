@@ -159,7 +159,7 @@ function BookingForm({
               type="button"
               onClick={() => chooseCareType(type)}
               className={cn(
-                "rounded-full border px-3 py-1.5 text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                "rounded-full border px-3 py-1.5 text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring",
                 typeOfCare === type ? "border-primary bg-secondary text-primary" : "bg-card hover:bg-muted",
               )}
             >
@@ -179,7 +179,7 @@ function BookingForm({
         required
       />
 
-      <p className="flex items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm">
+      <p className="flex items-center gap-2 rounded-md bg-muted px-4 py-3 text-sm">
         <UserRound className="size-4 text-primary" aria-hidden />
         <span>
           With <span className="font-medium">{clinicianName}</span>

@@ -77,7 +77,7 @@ export function AppointmentsView({ clinicianName, careTypes: initialCareTypes }:
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
-        <section aria-label="Calendar" className="rounded-3xl border bg-card p-3 sm:p-5">
+        <section aria-label="Calendar" className="rounded-lg border bg-card p-3 sm:p-5">
           <AppointmentsCalendar
             appointments={appointments}
             selectedDate={selectedDate}
@@ -154,7 +154,7 @@ function DayPanel({
                 <li key={a.id}>
                   <Link
                     href={`/appointments/${a.id}`}
-                    className="group flex items-center gap-4 rounded-2xl border bg-card p-4 transition-colors outline-none hover:border-primary/40 hover:bg-secondary/40 focus-visible:ring-3 focus-visible:ring-ring/50"
+                    className="group flex items-center gap-4 rounded-lg border bg-card p-4 transition-colors outline-none hover:border-primary/40 hover:bg-secondary/40 focus-visible:ring-3 focus-visible:ring-ring"
                   >
                     <div className="w-20 shrink-0 text-center whitespace-nowrap">
                       <p className="font-medium tabular-nums">{formatTime(start)}</p>
