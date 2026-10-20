@@ -158,6 +158,12 @@ export const patients = pgTable(
   "patients",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    // Spec v2: patients belong to the practice. Admins see every one; clinicians still see
+    // the patients assigned to them (clinicianId) until the shared patient list is built.
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "restrict" }),
+    // The assigned clinician.
     clinicianId: text("clinician_id")
       .notNull()
       .references(() => clinicians.id, { onDelete: "restrict" }),
@@ -168,12 +174,24 @@ export const patients = pgTable(
     address: text("address"),
     phone: text("phone"),
     // Where this patient's invoices were last emailed; pre-fills the next invoice.
+    // Also the "Email" on Add patient ("Used to send their invoices").
     invoiceEmail: text("invoice_email"),
+    // Spec v2 Add patient (admins set all of these; see src/lib/patient-options.ts).
+    insurer: text("insurer"),
+    servicesOrdered: text("services_ordered").array().notNull().default(sql`'{}'::text[]`),
+    orderingDoctor: text("ordering_doctor"),
+    referralDate: date("referral_date"),
+    startOfCare: date("start_of_care"),
+    status: text("status", { enum: ["active", "discharged"] }).notNull().default("active"),
+    // Who added the record (an admin or a clinician); kept if that account goes.
+    addedById: text("added_by_id").references(() => clinicians.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("patients_clinician_id_idx").on(t.clinicianId),
+    index("patients_practice_id_idx").on(t.practiceId),
+    check("patients_status_check", sql`${t.status} in ('active', 'discharged')`),
     // Typo-tolerant name search (pg_trgm).
     index("patients_full_name_trgm_idx").using("gin", sql`${t.fullName} gin_trgm_ops`),
   ],

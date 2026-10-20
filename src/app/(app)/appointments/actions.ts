@@ -75,7 +75,8 @@ export async function searchPatients(query: string): Promise<PatientOption[]> {
   const clinician = await requireClinician();
   const q = z.string().trim().max(100).parse(query);
   const columns = { id: patients.id, fullName: patients.fullName, dateOfBirth: patients.dateOfBirth, phone: patients.phone };
-  const mine = eq(patients.clinicianId, clinician.id);
+  // Only active patients can be booked; discharged ones stay on record for the admin.
+  const mine = and(eq(patients.clinicianId, clinician.id), eq(patients.status, "active"));
 
   if (!q) {
     return db.select(columns).from(patients).where(mine).orderBy(desc(patients.createdAt)).limit(6);
@@ -143,14 +144,18 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
       const [found] = await tx
         .select({ id: patients.id, fullName: patients.fullName })
         .from(patients)
-        .where(and(eq(patients.id, patient.id), eq(patients.clinicianId, clinician.id)));
+        .where(
+          and(eq(patients.id, patient.id), eq(patients.clinicianId, clinician.id), eq(patients.status, "active")),
+        );
       if (!found) return { ok: false as const, message: "We couldn't find that patient. Please choose them again." };
       patientRow = found;
     } else {
       [patientRow] = await tx
         .insert(patients)
         .values({
+          practiceId: clinician.practiceId,
           clinicianId: clinician.id,
+          addedById: clinician.id,
           fullName: patient.fullName,
           dateOfBirth: patient.dateOfBirth,
           gender: patient.gender || null,
