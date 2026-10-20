@@ -14,6 +14,31 @@ import {
 } from "drizzle-orm/pg-core";
 
 // ---------------------------------------------------------------------------
+// Practices (spec v2). An administrator creates the practice at sign-up; clinicians
+// join it by signing up with the same practice name and stay "pending" until the
+// admin activates them. Accounts made before v2 each got their own practice.
+// ---------------------------------------------------------------------------
+
+export const practices = pgTable(
+  "practices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    // The name lower-cased with punctuation and spacing collapsed (normalisePracticeName),
+    // so "Reyes Therapy" and "REYES  THERAPY." are the same practice.
+    nameKey: text("name_key").notNull().unique(),
+    // "US" (US dollars) or "KE" (Kenyan shillings). Sets the currency.
+    country: text("country", { enum: ["US", "KE"] }).notNull().default("US"),
+    // Letterhead logo: a PNG/JPEG data URL, resized in the browser and checked by
+    // parseLogoDataUrl. Served by /api/practice-logo, never embedded in pages.
+    logo: text("logo"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("practices_country_check", sql`${t.country} in ('US', 'KE')`)],
+);
+
+// ---------------------------------------------------------------------------
 // Auth tables (shape required by Better Auth; see src/lib/auth.ts).
 // Better Auth's "user" model is the spec's Clinicians table.
 // ---------------------------------------------------------------------------
@@ -24,16 +49,19 @@ export const clinicians = pgTable("clinicians", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
+  practiceId: uuid("practice_id")
+    .notNull()
+    .references(() => practices.id, { onDelete: "restrict" }),
+  // Copies of the practice's name and country, so they ride along in the session.
+  // updatePractice keeps them in step with the practices row.
   practiceName: text("practice_name").notNull(),
-  // Spec v2 account type: "clinician" writes notes; "admin" runs the practice and never writes notes.
-  // Set at sign-up only (src/lib/auth.ts strips it from updates).
-  role: text("role", { enum: ["clinician", "admin"] }).notNull().default("clinician"),
-  // Practice country: "US" (US dollars) or "KE" (Kenyan shillings). Sets the currency.
   country: text("country", { enum: ["US", "KE"] }).notNull().default("US"),
-  // Optional practice logo for the note letterhead: a PNG/JPEG data URL, resized in the
-  // browser and checked by parseLogoDataUrl. Not a Better Auth field, so it never rides
-  // along in the session; it's served by /api/practice-logo.
-  practiceLogo: text("practice_logo"),
+  // Spec v2 account type: "clinician" writes notes; "admin" runs the practice and never writes notes.
+  // Set at sign-up only; a trigger (drizzle/0005) blocks any change.
+  role: text("role", { enum: ["clinician", "admin"] }).notNull().default("clinician"),
+  // Clinicians start "pending" and can't see patients until their practice admin
+  // activates them. Admins can deactivate (and reactivate) them later; notes are kept.
+  status: text("status", { enum: ["pending", "active", "deactivated"] }).notNull().default("pending"),
   // Last invoice number issued. Incremented inside the invoice transaction so
   // numbers are sequential per clinician with no gaps (a Postgres sequence can skip).
   lastInvoiceNumber: integer("last_invoice_number").notNull().default(0),
@@ -50,6 +78,8 @@ export const clinicians = pgTable("clinicians", {
 }, (t) => [
   check("clinicians_role_check", sql`${t.role} in ('clinician', 'admin')`),
   check("clinicians_country_check", sql`${t.country} in ('US', 'KE')`),
+  check("clinicians_status_check", sql`${t.status} in ('pending', 'active', 'deactivated')`),
+  index("clinicians_practice_idx").on(t.practiceId),
 ]);
 
 export const sessions = pgTable(

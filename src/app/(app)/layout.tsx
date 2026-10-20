@@ -4,8 +4,8 @@ import { practiceLogoUrlFor } from "@/lib/practice";
 
 /** Clinician app. Admins are sent to /admin by requireClinician(). */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { id, name, practiceName, updatedAt } = await requireClinician();
-  const logoUrl = await practiceLogoUrlFor(id, updatedAt);
+  const { name, practiceName, practiceId } = await requireClinician();
+  const logoUrl = await practiceLogoUrlFor(practiceId);
 
   return (
     <AppShell

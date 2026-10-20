@@ -44,16 +44,21 @@ export async function sendEmail(email: Email): Promise<{ via: "smtp" | "outbox" 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-/** Simple branded email body. `rows` become a two-column list (e.g. time and patient). */
+/**
+ * Simple branded email body. `rows` become a two-column list (e.g. time and patient).
+ * `action` adds a button, plus the plain link for mail apps that hide buttons.
+ */
 export function renderEmail({
   heading,
   intro,
   rows = [],
+  action,
   outro,
 }: {
   heading: string;
   intro: string;
   rows?: [string, string][];
+  action?: { label: string; url: string };
   outro?: string;
 }): { html: string; text: string } {
   const rowsHtml = rows
@@ -69,10 +74,19 @@ export function renderEmail({
     <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;font-weight:normal;color:#2D6A4F">${escapeHtml(heading)}</h1>
     <p style="margin:0 0 16px;line-height:1.5">${escapeHtml(intro)}</p>
     ${rows.length ? `<table style="border-collapse:collapse;width:100%;border-top:1px solid #DFE0E5">${rowsHtml}</table>` : ""}
+    ${action ? `<p style="margin:20px 0 8px"><a href="${escapeHtml(action.url)}" style="display:inline-block;background:#2D6A4F;color:#fff;text-decoration:none;font-weight:600;padding:14px 24px;border-radius:999px">${escapeHtml(action.label)}</a></p><p style="margin:0;font-size:13px;line-height:1.5;color:#686D76;word-break:break-all">Or paste this link into your browser: ${escapeHtml(action.url)}</p>` : ""}
     ${outro ? `<p style="margin:16px 0 0;line-height:1.5;color:#686D76">${escapeHtml(outro)}</p>` : ""}
   </div>
   <p style="margin:20px 4px 0;font-size:12px;color:#686D76">Sent by Tiba. This email may contain private health information. If it reached you by mistake, please delete it.</p>
 </div></body></html>`;
-  const text = [heading, "", intro, "", ...rows.map(([a, b]) => `${a}  ${b}`), ...(outro ? ["", outro] : [])].join("\n");
+  const text = [
+    heading,
+    "",
+    intro,
+    "",
+    ...rows.map(([a, b]) => `${a}  ${b}`),
+    ...(action ? [`${action.label}: ${action.url}`] : []),
+    ...(outro ? ["", outro] : []),
+  ].join("\n");
   return { html, text };
 }

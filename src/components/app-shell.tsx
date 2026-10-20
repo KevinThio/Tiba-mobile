@@ -43,9 +43,12 @@ export function AppShell({
   app,
   user,
   practiceBrand,
+  badges = {},
   children,
 }: {
   app: "clinician" | "admin";
+  /** Counts shown beside menu items, by href (e.g. clinicians waiting to be verified). */
+  badges?: Record<string, number>;
   user: ShellIdentity;
   practiceBrand?: { name: string; logoUrl: string | null; caption: string };
   children: React.ReactNode;
@@ -91,7 +94,8 @@ export function AppShell({
                         )}
                       >
                         <Icon className="size-5" aria-hidden />
-                        {label}
+                        <span className="flex-1">{label}</span>
+                        {badges[href] ? <CountBadge count={badges[href]} /> : null}
                       </Link>
                     </li>
                   );
@@ -145,6 +149,7 @@ export function AppShell({
           <ul className="mx-auto grid h-[72px] max-w-md grid-cols-4 px-2 pt-1.5 pb-2.5">
             {tabs.map(({ href, label, icon: Icon, exact, also = [] }) => {
               const active = isActive(pathname, href, exact) || also.some((h) => isActive(pathname, h));
+              const count = [href, ...also].reduce((n, h) => n + (badges[h] ?? 0), 0);
               return (
                 <li key={href}>
                   <Link
@@ -157,11 +162,12 @@ export function AppShell({
                   >
                     <span
                       className={cn(
-                        "flex h-8 w-14 items-center justify-center rounded-full transition-colors",
+                        "relative flex h-8 w-14 items-center justify-center rounded-full transition-colors",
                         active && "bg-secondary",
                       )}
                     >
                       <Icon className="size-5" aria-hidden />
+                      {count > 0 && <CountBadge count={count} className="absolute -top-1.5 right-1.5" />}
                     </span>
                     {label}
                   </Link>
@@ -172,5 +178,20 @@ export function AppShell({
         </nav>
       </div>
     </div>
+  );
+}
+
+/** Small lilac count, e.g. clinicians waiting to be verified. */
+function CountBadge({ count, className }: { count: number; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-foreground",
+        className,
+      )}
+    >
+      {count}
+      <span className="sr-only"> waiting</span>
+    </span>
   );
 }

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { LocalDateTime } from "@/components/local-date-time";
 import { NoteLetterhead } from "@/components/note-letterhead";
 import { db } from "@/db";
-import { appointments, clinicians, notes, patients } from "@/db/schema";
+import { appointments, clinicians, notes, patients, practices } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
 import { practiceLogoUrl } from "@/lib/practice-logo";
@@ -26,7 +26,8 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       typeOfCare: appointments.typeOfCare,
       patientName: patients.fullName,
       dateOfBirth: patients.dateOfBirth,
-      hasLogo: isNotNull(clinicians.practiceLogo),
+      hasLogo: isNotNull(practices.logo),
+      practiceUpdatedAt: practices.updatedAt,
       timeIn: appointments.timeIn,
       timeOut: appointments.timeOut,
       signed: isNotNull(notes.signedAt),
@@ -34,6 +35,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
     .from(appointments)
     .innerJoin(patients, eq(patients.id, appointments.patientId))
     .innerJoin(clinicians, eq(clinicians.id, appointments.clinicianId))
+    .innerJoin(practices, eq(practices.id, clinicians.practiceId))
     .leftJoin(notes, eq(notes.appointmentId, appointments.id))
     .where(and(eq(appointments.id, id), eq(appointments.clinicianId, clinician.id)));
   if (!visit) notFound();
@@ -49,7 +51,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
         <NoteLetterhead
           practiceName={clinician.practiceName}
           clinicianName={clinician.name}
-          logoUrl={visit.hasLogo ? practiceLogoUrl(clinician.updatedAt) : null}
+          logoUrl={visit.hasLogo ? practiceLogoUrl(visit.practiceUpdatedAt) : null}
         />
 
         <div className="grid gap-1">

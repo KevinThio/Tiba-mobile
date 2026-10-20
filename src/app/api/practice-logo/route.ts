@@ -1,19 +1,19 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { clinicians } from "@/db/schema";
+import { practices } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
 
-// Serves the signed-in clinician's practice logo. Private: only they can fetch it.
+// Serves the signed-in account's practice logo. Private: only people in that practice can fetch it.
 // Callers add ?v=<updatedAt> (see practiceLogoUrl), so the browser can cache it safely.
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return new Response(null, { status: 401 });
+  if (!session?.user.practiceId) return new Response(null, { status: 401 });
 
   const [row] = await db
-    .select({ logo: clinicians.practiceLogo })
-    .from(clinicians)
-    .where(eq(clinicians.id, session.user.id));
+    .select({ logo: practices.logo })
+    .from(practices)
+    .where(eq(practices.id, session.user.practiceId));
   const image = row?.logo ? parseLogoDataUrl(row.logo) : null;
   if (!image) return new Response(null, { status: 404 });
 

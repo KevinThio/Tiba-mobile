@@ -43,11 +43,19 @@ export default function SignInPage() {
       <AuthHeading title="Welcome back">Sign in to your practice.</AuthHeading>
       <form onSubmit={onSubmit} className="grid gap-5">
         <FormField label="Email" name="email" type="email" autoComplete="email" required />
-        <FormField
-          label="Password"
-          name="password"
-          input={<PasswordInput id="password" name="password" autoComplete="current-password" required />}
-        />
+        <div className="grid gap-2">
+          <FormField
+            label="Password"
+            name="password"
+            input={<PasswordInput id="password" name="password" autoComplete="current-password" required />}
+          />
+          <Link
+            href="/forgot-password"
+            className="w-fit justify-self-end rounded-sm text-small font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring"
+          >
+            Forgot password?
+          </Link>
+        </div>
         {error && <FormAlert>{error}</FormAlert>}
         <Button type="submit" size="lg" disabled={pending} className="mt-1">
           {pending ? "Signing you in…" : "Sign in"}

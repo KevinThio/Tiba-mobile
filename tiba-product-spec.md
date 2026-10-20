@@ -38,6 +38,8 @@ Core action is unchanged: *write and sign a note for a patient visit.*
 | Navigation | Clinician phone tabs are Visits, Notes, Patients and Account. Admin menu adds Notifications, Performance and Contracts. |
 | Reviews | Patients can name the clinician they saw ("Who did you see?"). |
 | Build guide | Data model, permissions, acceptance criteria and new design-system patterns (section 11). |
+| Joining a practice | Clinicians sign up with their practice's name and wait until the practice admin verifies (activates) them (section 3). |
+| Forgot password | Sign in links to a page that emails a reset link to registered emails only (section 3). |
 
 ## 2. Who uses Tiba
 
@@ -55,6 +57,13 @@ Core action is unchanged: *write and sign a note for a patient visit.*
 - Unknown email: "We couldn't find an account for that email. Check it, or create one below."
 - Links: **Create an account**, **Leave a review** (patients) and **Check reviews from patients**. The last asks for an admin sign-in and opens Reviews. A clinician who uses it is told only the admin can see reviews.
 
+### Forgot password
+- **Forgot password?** sits under the password field on Sign in and opens a page that asks for the account's email.
+- **Unregistered emails are not accepted:** "We couldn't find an account for that email. Check it, or create an account." Nothing is sent. (This tells people whether an email has an account, as sign in and sign up already do.)
+- For a registered email, Tiba emails a **reset link** and shows "Check your email" with the address. The link works **once, within 1 hour**. Asking again within a minute is held back: "We sent you a link a moment ago…".
+- The link opens **Set a new password**: new password (at least 8 characters) typed twice. Saving changes the password and **signs the account out on every device**; then "Your password is changed" with **Sign in**.
+- A used or expired link shows "This link has expired" with **Send a new link**.
+
 ### Sign up
 
 | Field | Rule |
@@ -62,12 +71,27 @@ Core action is unchanged: *write and sign a note for a patient visit.*
 | Your name | Required. |
 | Email | Required and must include an @. Must not belong to an existing account. |
 | Password | At least 8 characters. |
-| Practice name | Required. |
-| Country | United States or Kenya. Sets the currency ($ or KSh). |
-| Type of account | Clinician or Administrator. Required. |
-| Practice logo | Image file. Optional for clinicians, required for administrators: "Admins need to add the practice logo." |
+| Type of account | Clinician or Administrator. Required. Asked before the practice name, because the fields below depend on it. |
+| Practice name | Required. An administrator creates the practice with this name; a clinician joins the practice with this name (see **Joining a practice**). |
+| Country | Administrators only: United States or Kenya. Sets the currency ($ or KSh). Clinicians use their practice's country. |
+| Practice logo | Administrators only, and required: "Admins need to add the practice logo." Clinicians use their practice's logo. |
 
 The practice name and logo form the **letterhead** at the top of every signed note, invoice, service agreement and contract, on screen and in the PDF. With no logo, the letterhead shows the practice name (contracts show initials and ask the admin to add a logo).
+
+### Joining a practice
+A practice is created by its administrator. Clinicians join it by signing up with the same practice name, and their account stays **inactive until the admin verifies it**.
+
+| Step | What happens |
+|---|---|
+| Admin signs up | Creates the practice and is active straight away. If a practice with that name is already on Tiba: "A practice called "Reyes Therapy" is already on Tiba. If it's yours, sign in instead. If not, add something to tell it apart, like the town." |
+| Clinician signs up | Types the practice name. Names match ignoring case, spaces and punctuation ("reyes therapy." joins "Reyes Therapy"). The account is created as **Waiting for verification**, the admin gets an email, and the clinician sees "Waiting for your admin". |
+| No such practice | "We couldn't find a practice called "…". Check the exact name with your practice admin. They need to create the practice on Tiba first." No account is created. |
+| Practice has no admin | (Practices made before Version 2.) ""…" doesn't have an admin on Tiba yet, so nobody can verify you. Ask your practice to create an admin account first." |
+| While waiting | The clinician can sign in but only sees the waiting page ("Check again", "Sign out"). They can't see patients, appointments or invoices. |
+| Admin verifies | On **Clinicians**, the admin taps **Activate**. The clinician is emailed ("You're verified at …") and their next visit opens Appointments. **Not now** leaves them inactive (shown as Deactivated); the admin can activate them later. |
+| Admin deactivates | Asks to confirm. The clinician is signed out everywhere at once, can't see patients, and sees "Your account is turned off" if they sign in. Their notes are kept. **Activate** turns the account back on. |
+
+Account statuses: **Waiting for verification** (pending) → **Active** ⇄ **Deactivated**. Only the practice admin changes them; nobody can change their own status, practice or account type.
 
 ### Sign out
 Available on every device: Settings on desktop, the Account tab on the clinician phone app, the account area of the desktop side menu, and the More screen in the admin phone app. Sign-out always returns to the sign-in page.
@@ -199,10 +223,10 @@ The top shows the practice logo and name; the bottom shows the admin name and Si
 
 | Screen | What it does |
 |---|---|
-| Overview | Practice logo, name and admin name. "Needs your attention": notes unbilled 30+ days, agreements waiting for the admin, deactivated accounts, new reviews, new invoices, possible duplicates, contract replies and signatures. Today's visits across the practice. |
+| Overview | Practice logo, name and admin name. "Needs your attention": clinicians waiting to be verified, notes unbilled 30+ days, agreements waiting for the admin, deactivated accounts, new reviews, new invoices, possible duplicates, contract replies and signatures. Today's visits across the practice. |
 | Notifications | New invoices, possible duplicates, new reviews, notes unbilled for 30+ days, and contract messages and signatures. Each item opens the screen where it's handled. |
 | Performance | See section 5b. |
-| Clinicians | Every clinician with Active or Deactivated status. |
+| Clinicians | **Waiting for you to verify**: clinicians who signed up with the practice name, with **Activate** and **Not now**. Then every clinician with Active or Deactivated status, with **Deactivate** (asks to confirm) or **Activate**. See **Joining a practice** in section 3. |
 | Clinician profile | Details (role, email, phone, registration, location, joined). Qualifications, Education, Certifications and Profile documents from the clinician's profile, all downloadable. Account active toggle; deactivating asks to confirm and keeps their notes. Emergency contact (name, relationship, phone). Documents. Send contract. |
 | Patients | Active and Discharged tabs, search, assigned clinician, agreement status, "Admin checking" for possible duplicates. Add patient. |
 | Add patient | As for clinicians, plus assigned clinician, insurer, date of referral and start of care. |
@@ -325,6 +349,9 @@ Admins see the same information on each clinician's page (Qualifications, Educat
 - Sent from the practice's configured email account. Each email notes that it may contain private health information.
 - **Tomorrow's appointments** go to the clinician: on request, or every evening if turned on (kept from v1.1).
 - **Invoices** go to the address entered when the invoice is created (or later), with the invoice PDF attached (kept from v1.1).
+- **Reset your password** goes to the account's email when someone asks on the Forgot password page, with a **Set a new password** button (and the plain link). It works once, within an hour.
+- **New clinician waiting** goes to the practice admin when a clinician signs up with the practice name: "Dr Wanjiru wants to join Reyes Therapy on Tiba", with a link to Clinicians.
+- **You're verified** goes to the clinician when the admin activates them for the first time.
 - **Billing reminders** go to clinicians with notes waiting more than 30 days (channel to be decided, see open questions).
 - In-app notifications (section 5b) don't send email yet.
 
@@ -349,8 +376,8 @@ Actions that save (sign in, sign up, sign and save, send invoice, send contract)
 
 | Table | Fields | Written by | Read by |
 |---|---|---|---|
-| Practices | name, country, currency (USD or KES), logo, letterhead (address, phone, email, image) | Sign up, Admin settings | Everything (letterhead, currency) |
-| Accounts | name, email, password, type (clinician or administrator), practice, active or deactivated, discipline (RN, LPN, PT, OT, ST, HHA, MH), role, phone, registration, location, emergency contact, documents, patients-sign setting, visit fee, evening reminder on/off, time zone | Sign up, Admin (clinician profile), Settings | Sign in, Admin |
+| Practices | name, name for matching (lower case, no punctuation; unique), country, currency (USD or KES), logo, letterhead (address, phone, email, image) | Admin sign up, Admin settings | Everything (letterhead, currency, clinician sign up) |
+| Accounts | name, email, password, type (clinician or administrator), practice, status (waiting for verification, active or deactivated), discipline (RN, LPN, PT, OT, ST, HHA, MH), role, phone, registration, location, emergency contact, documents, patients-sign setting, visit fee, evening reminder on/off, time zone | Sign up, Admin (clinician profile), Settings | Sign in, Admin |
 | Clinician profiles | speciality, licence number, issuer and expiry, education (level, course, school, year), certifications (name, issuer, expiry), resume, W-9, other documents | Clinician | Clinician, Admin |
 | Locations | name, address, type of facility, type of services, files | Admin | Admin, Reviews, Clinician profile |
 | Patients | full name, date of birth (age is calculated), phone, email, insurer, diagnosis codes, services ordered (RN, PT, OT, ST, HHA, MSW), ordering doctor, assigned clinician, date of referral, start of care, status (active, discharged or merged), added by and when, duplicate flag (match, flagged by, when), merged into, invoice email, files | Clinician, Admin | Both apps |
@@ -391,7 +418,7 @@ Section 10 expands this with the fields kept from v1.1 (time in and out, invoice
 ### Suggested build order
 Each step builds on the one before. Section 14 has the details for each screen.
 
-1. **Foundations:** practices and account types (clinician or admin), country and currency, discipline; sign up and sign in updated to match (password 8+, country, account type, admin logo required).
+1. **Foundations:** practices and account types (clinician or admin), country and currency, discipline; sign up and sign in updated to match (password 8+, country, account type, admin logo required); clinicians joining a practice and the admin verifying them. *Done 20 Oct 2026, except discipline.*
 2. **Clinician core:** Appointments (week strip, statuses), Visit note for therapy types (drafts, sections, progress), Sign note, Signed note (written note, addenda), Notes to do.
 3. **Patients:** Patients list, Add patient (services ordered, duplicate check), Patient record (care team).
 4. **Billing:** Invoice from signed visits (due date, currency), merged with the existing Invoices screen.
@@ -471,6 +498,9 @@ These patterns were built in the design project on top of the Tiba Design System
 - **Currency:** sample prices show as $80.00 or KSh 8,000. Should one practice be able to bill in both currencies at once?
 - **Notifications by email:** should any in-app notification (contract to sign, invoice issue) also send an email?
 - **Billing codes:** the CPT and G codes are US codes. What do Kenyan practices use?
+- **More than one admin:** a practice has one admin for now (a second admin sign-up with the same name is refused). Should an admin be able to add another admin?
+- **Solo clinicians:** a clinician can only join a practice that has an admin. Should a clinician who works alone be able to set up their own practice without an admin?
+- **Renaming a practice:** clinicians join by the current name. Should the admin be able to share a join link or code instead of the name?
 
 ## 14. Screen details (from the prototypes)
 
@@ -487,8 +517,13 @@ Taken from Tiba Prototype Desktop and Tiba Prototype (phone), 20 Oct 2026. Each 
 ### Auth and patient pages
 | Screen | Details |
 |---|---|
-| Sign in | "Welcome back" · "Sign in to your practice." Email, Password, "Keep me signed in" (on by default), **Sign in**. "New to Tiba? Create an account". Panel "Are you a patient?": "Tell the practice how your visits went. Only the practice admin reads reviews." **Leave a review**, **Check reviews from patients**. (The prototype's "Try a demo account" links are for the prototype only.) |
-| Sign up | "Let's set you up" · "One account for you and your practice." Your name, Email, Password ("At least 8 characters."), Practice name, Country (hint "Prices will show in US dollars ($)."), Type of account as two cards: Clinician "Write notes, sign and invoice your patients." / Administrator "Run the practice: clinicians, billing, locations." Practice logo ("Optional for clinicians. PNG or JPG works best."). **Create account**. "Already have an account? Sign in". |
+| Sign in | "Welcome back" · "Sign in to your practice." Email, Password, **Forgot password?** link, "Keep me signed in" (on by default), **Sign in**. "New to Tiba? Create an account". Panel "Are you a patient?": "Tell the practice how your visits went. Only the practice admin reads reviews." **Leave a review**, **Check reviews from patients**. (The prototype's "Try a demo account" links are for the prototype only.) |
+| Forgot password | Back to sign in. "Forgot your password?" · "Enter the email you use for Tiba and we'll send you a link to set a new one." Email, **Send reset link**. Unregistered email: "We couldn't find an account for that email. Check it, or create an account." "Remembered it? Back to sign in". |
+| Check your email | "Check your email" · "We've sent a link to … It works once, within the next hour. If it isn't there, check your spam folder." **Back to sign in**, **Send it again**. |
+| Set a new password | "Set a new password" · "Choose a password you don't use anywhere else." New password ("At least 8 characters."), Type it again ("The two passwords don't match. Type the same password in both boxes."), **Save new password**. Then "Your password is changed" · "Sign in with your new password. For your safety, we've signed your account out on every other device." **Sign in**. |
+| Link expired | "This link has expired" · "Reset links work once, within an hour of asking. Ask for a new one and use it straight away." **Send a new link**, **Back to sign in**. |
+| Sign up | "Let's set you up" · "One account for you and your practice." Your name, Email, Password ("At least 8 characters."), Type of account as two cards: Clinician "Write notes, sign and invoice your patients." / Administrator "Run the practice: clinicians, billing, locations." Practice name (clinician hint: "Use the same name your practice admin signed up with. They'll verify your account before you can see patients."; admin hint: "Clinicians join your practice by entering this name when they sign up. You verify each one."). Admins only: Country (hint "Prices will show in US dollars ($).") and Practice logo ("It shows on invoices, notes and agreements. PNG or JPG works best."). **Create account**. "Already have an account? Sign in". |
+| Waiting for your admin | Hourglass icon · "Waiting for your admin" · "You've asked to join Reyes Therapy. Your practice admin needs to verify your account before you can see patients. We've let them know." "Signed in as … Once you're verified, we'll email you and this page opens your appointments." **Check again**, **Sign out**. Deactivated version: "Your account is turned off" · "Reyes Therapy's admin has deactivated your account, so you can't see patients for now. Your notes are kept safe. If this is a mistake, contact your practice admin." |
 | Leave a review | Back to Sign in. "How was your visit?" · "Your review goes privately to the practice. You don't need an account." Practice (location list), Your rating (stars), Your review, Who did you see? (Not sure, or a clinician; "Optional. Helps the practice thank the right person."), Your name (optional; "Leave blank to stay anonymous."). **Send review**. |
 | Review sent | "Thank you" · "Your review is with the practice. Only their admin can read it." **Back to sign in**. |
 
@@ -519,7 +554,7 @@ Taken from Tiba Prototype Desktop and Tiba Prototype (phone), 20 Oct 2026. Each 
 | Overview | "Admin · Ruth Mensah" · practice name. **Needs your attention** rows, each with an icon, a line of detail and a badge: "4 notes unbilled 30+ days · Oldest signed 26 Aug 2026 · 51 days ago" (Overdue); "Sign Lena's service agreement"; "Check possible duplicate: AMINA HASSAN" (Confirm); "Maya sent a message about a contract" (Reply); "Tom signed a contract" (Signed); "3 new invoices from clinicians · Mark paid, or flag an issue" (New); "1 invoice has an issue · Waiting for the clinician to fix"; "Grace Wanjiru's account is deactivated" (Deactivated); "3 new patient reviews · In the last two weeks". **Today across the practice**: "13:00 · Individual therapy · Dr Sam Reyes". |
 | Notifications | "For you" · Notifications. Rows such as "Dr Maya Chen sent INV-1052 · $120 · Marcus Bell · 16 Oct" (New), "Possible duplicate: AMINA HASSAN" (Confirm), "New review · 5 of 5", "4 notes unbilled for 30+ days". |
 | Performance | "Practice performance" · Performance. Period chips. Stat cards: Patients admitted (names), Invoices sent ("$645.00 in total"), Paid ("$200.00 received"), Unpaid ("$355.00 waiting"), Missed visits ("Across 3 clinicians"), Patient reviews ("Average 4.3 of 5"). Invoices split bar (Paid, Unpaid, Issues). **By clinician** "Missed visits, invoices and patient reviews in this period.": each clinician with role, missed visits, invoices "3 · $240", reviews "5.0 (1)". **Reviews in this period**. |
-| Clinicians | "4 active · 1 deactivated" · Clinicians. Rows: name, "Clinical psychologist · Camden", Active or Deactivated. |
+| Clinicians | "4 active · 1 deactivated" · Clinicians. **Waiting for you to verify (1)** "They signed up with your practice name. Activate the people you know; until then they can't see any patients." Rows: name, "email · asked to join 20 Oct 2026", "Waiting for you" badge, **Activate**, **Not now**. **Your clinicians**: name, "Clinical psychologist · Camden" (role and location once profiles exist), Active or Deactivated, **Deactivate** or **Activate**. Deactivate dialog: "Deactivate Dr Maya Chen? They're signed out straight away and can't see patients. Their notes are kept, and you can turn the account back on at any time." **Keep active** / **Deactivate account**. Empty: "No clinicians yet. Ask your clinicians to create an account with the practice name "Reyes Therapy". They'll show up here for you to verify." The menu shows the waiting count. |
 | Clinician profile | Back Clinicians. Role · name · **Send contract**, **Deactivate account** (or **Activate account**). Details (Role, Email, Phone, Registration, Location, Joined). Qualifications (Speciality, License, Issued by, License expires). Education. Certifications. Profile documents ("Uploaded by the clinician"). Account: "Account active · They can sign in and write notes." Emergency contact (Name, Relationship (optional), Phone, **Save contact**). Documents ("Registration, insurance, DBS, contracts. Only admins can see these."; Description (optional), **Upload file**). |
 | Patients | "9 active · 2 discharged" · Patients · **Add patient**. Tabs Active (9), Discharged (2). Rows: name, "Dr Sam Reyes · Started 3 Feb 2026" (or "Referred 2 Oct 2026"), badge: Agreement signed, Needs your signature, No agreement or Possible duplicate. |
 | Patient details | Back Patients. "Active · Dr Sam Reyes" · name · **Discharge** (or **Reactivate**). Details (date of birth, phone, email, insurer, services ordered, ordering doctor, diagnosis). Care (date of referral, start of care, clinician picker). Service agreement status, e.g. "Lena signed on 14 Oct 2026, 14:52. Add your signature to finish." **Open to sign**. Clinical documents ("Referral letters, reports, test results. Kept with Lena's record."). |

@@ -5,12 +5,14 @@ import { PracticeDetailsDialog } from "@/components/practice-details-dialog";
 import { PracticeMark } from "@/components/practice-mark";
 import { SignOutButton } from "@/components/sign-out-button";
 import { requireClinician } from "@/lib/auth";
-import { practiceLogoUrlFor } from "@/lib/practice";
+import { canEditPractice, practiceLogoUrlFor } from "@/lib/practice";
 
 /** Desktop: Settings. Phone: the Account tab, which also links to the screens that aren't tabs. */
 export default async function SettingsPage() {
-  const { id, name, practiceName, updatedAt } = await requireClinician();
-  const logoUrl = await practiceLogoUrlFor(id, updatedAt);
+  const clinician = await requireClinician();
+  const { name, practiceName, practiceId } = clinician;
+  const logoUrl = await practiceLogoUrlFor(practiceId);
+  const canEdit = await canEditPractice(clinician);
 
   return (
     <div className="grid max-w-3xl grid-cols-1 gap-6">
@@ -40,10 +42,14 @@ export default async function SettingsPage() {
             <PracticeMark practiceName={practiceName} logoUrl={logoUrl} />
             <div className="min-w-0">
               <p className="truncate font-semibold">{practiceName}</p>
-              <p className="text-small text-muted-foreground">Shown on your notes and invoices.</p>
+              <p className="text-small text-muted-foreground">
+                {canEdit ? "Shown on your notes and invoices." : "Shown on your notes and invoices. Your practice admin manages the name and logo."}
+              </p>
             </div>
           </div>
-          <PracticeDetailsDialog practiceName={practiceName} logoUrl={logoUrl} triggerClassName="border-border-action" />
+          {canEdit && (
+            <PracticeDetailsDialog practiceName={practiceName} logoUrl={logoUrl} triggerClassName="border-border-action" />
+          )}
         </div>
       </section>
 

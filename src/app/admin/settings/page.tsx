@@ -11,8 +11,8 @@ const COUNTRY = {
 } as const;
 
 export default async function AdminSettingsPage() {
-  const { id, name, practiceName, country, updatedAt } = await requireAdmin();
-  const logoUrl = await practiceLogoUrlFor(id, updatedAt);
+  const { name, practiceName, practiceId, country } = await requireAdmin();
+  const logoUrl = await practiceLogoUrlFor(practiceId);
   const place = COUNTRY[country as keyof typeof COUNTRY] ?? COUNTRY.US;
 
   return (

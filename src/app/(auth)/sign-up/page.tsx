@@ -26,6 +26,16 @@ const SIGN_UP_MESSAGES: Record<string, string> = {
   INVALID_EMAIL: "Add an @, e.g. sam@clinic.com.",
 };
 
+// Practice matching (src/lib/practice-join.ts). These name the practice so people can check it.
+const PRACTICE_MESSAGES: Record<string, (practice: string) => string> = {
+  PRACTICE_TAKEN: (p) =>
+    `A practice called “${p}” is already on Tiba. If it's yours, sign in instead. If not, add something to tell it apart, like the town.`,
+  PRACTICE_NOT_FOUND: (p) =>
+    `We couldn't find a practice called “${p}”. Check the exact name with your practice admin. They need to create the practice on Tiba first.`,
+  PRACTICE_HAS_NO_ADMIN: (p) =>
+    `“${p}” doesn't have an admin on Tiba yet, so nobody can verify you. Ask your practice to create an admin account first.`,
+};
+
 type Role = "clinician" | "admin";
 type Country = "US" | "KE";
 
@@ -57,23 +67,30 @@ export default function SignUpPage() {
       return;
     }
     const form = new FormData(event.currentTarget);
+    const practiceName = String(form.get("practiceName")).trim();
     setPending(true);
     setError(null);
     const { error } = await authClient.signUp.email({
       name: String(form.get("name")),
       email: String(form.get("email")),
       password: String(form.get("password")),
-      practiceName: String(form.get("practiceName")),
+      practiceName,
       role,
       country,
     });
     if (error) {
       setPending(false);
-      setError(SIGN_UP_MESSAGES[error.code ?? ""] ?? "We couldn't create your account. Please check your details and try again.");
+      const code = error.code ?? "";
+      setError(
+        PRACTICE_MESSAGES[code]?.(practiceName) ??
+          SIGN_UP_MESSAGES[code] ??
+          "We couldn't create your account. Please check your details and try again.",
+      );
       return;
     }
-    // The logo is saved once the account exists. If that fails, the account is still fine.
-    if (logo) {
+    // An admin's logo is saved once the practice exists. If that fails, the account is still fine.
+    // Clinicians use their practice's logo. A new clinician goes to the waiting page from "/".
+    if (role === "admin" && logo) {
       const saved = await updatePractice({ logo }).catch(() => null);
       if (!saved?.ok) toast.error("Your account is ready, but we couldn't save the logo. You can add it in Settings.");
     }
@@ -101,25 +118,6 @@ export default function SignUpPage() {
             />
           }
         />
-        <FormField label="Practice name" name="practiceName" autoComplete="organization" required />
-        <div className="grid gap-2">
-          <Label htmlFor="country">Country</Label>
-          <NativeSelect
-            id="country"
-            name="country"
-            className="w-full"
-            value={country}
-            onChange={(e) => setCountry(e.target.value as Country)}
-            aria-describedby="country-hint"
-          >
-            <NativeSelectOption value="US">United States</NativeSelectOption>
-            <NativeSelectOption value="KE">Kenya</NativeSelectOption>
-          </NativeSelect>
-          <p id="country-hint" className="text-sm text-muted-foreground">
-            {CURRENCY_HINT[country]}
-          </p>
-        </div>
-
         <fieldset className="grid gap-2">
           <legend className="mb-2 text-sm font-medium">Type of account</legend>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -162,20 +160,50 @@ export default function SignUpPage() {
           </div>
         </fieldset>
 
-        <LogoUpload
-          value={logo}
-          onChange={(v) => {
-            setLogo(v);
-            if (v) setLogoMissing(false);
-          }}
-          required={role === "admin"}
+        <FormField
+          label="Practice name"
+          name="practiceName"
+          autoComplete="organization"
           hint={
             role === "admin"
-              ? "It shows on invoices, notes and agreements. PNG or JPG works best."
-              : "Optional for clinicians. PNG or JPG works best."
+              ? "Clinicians join your practice by entering this name when they sign up. You verify each one."
+              : "Use the same name your practice admin signed up with. They'll verify your account before you can see patients."
           }
-          missing={logoMissing ? LOGO_NEEDED : null}
+          required
         />
+        {role === "admin" && (
+        <div className="grid gap-2">
+          <Label htmlFor="country">Country</Label>
+          <NativeSelect
+            id="country"
+            name="country"
+            className="w-full"
+            value={country}
+            onChange={(e) => setCountry(e.target.value as Country)}
+            aria-describedby="country-hint"
+          >
+            <NativeSelectOption value="US">United States</NativeSelectOption>
+            <NativeSelectOption value="KE">Kenya</NativeSelectOption>
+          </NativeSelect>
+          <p id="country-hint" className="text-sm text-muted-foreground">
+            {CURRENCY_HINT[country]}
+          </p>
+        </div>
+        )}
+
+
+        {role === "admin" && (
+          <LogoUpload
+            value={logo}
+            onChange={(v) => {
+              setLogo(v);
+              if (v) setLogoMissing(false);
+            }}
+            required
+            hint="It shows on invoices, notes and agreements. PNG or JPG works best."
+            missing={logoMissing ? LOGO_NEEDED : null}
+          />
+        )}
 
         {error && <FormAlert>{error}</FormAlert>}
         <Button type="submit" size="lg" disabled={pending} className="mt-1">

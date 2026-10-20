@@ -2,7 +2,7 @@ import "server-only";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { appointments, clinicians, invoiceItems, invoices, patients } from "@/db/schema";
+import { appointments, clinicians, invoiceItems, invoices, patients, practices } from "@/db/schema";
 import { formatFee } from "@/lib/format";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
 
@@ -51,7 +51,7 @@ export async function loadInvoiceForPdf(invoiceId: string, clinicianId: string) 
       practiceName: clinicians.practiceName,
       clinicianName: clinicians.name,
       clinicianEmail: clinicians.email,
-      logo: clinicians.practiceLogo,
+      logo: practices.logo,
       timeZone: clinicians.timeZone,
       patientName: patients.fullName,
       patientAddress: patients.address,
@@ -59,6 +59,7 @@ export async function loadInvoiceForPdf(invoiceId: string, clinicianId: string) 
     })
     .from(invoices)
     .innerJoin(clinicians, eq(clinicians.id, invoices.clinicianId))
+    .innerJoin(practices, eq(practices.id, clinicians.practiceId))
     .innerJoin(patients, eq(patients.id, invoices.patientId))
     .where(and(eq(invoices.id, invoiceId), eq(invoices.clinicianId, clinicianId)));
   if (!head) return null;

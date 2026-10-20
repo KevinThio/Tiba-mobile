@@ -1,0 +1,1 @@
+ALTER TABLE "clinicians" DROP COLUMN "practice_logo";
