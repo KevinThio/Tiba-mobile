@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, patients } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import { clearNotifications } from "@/lib/notifications";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
 import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
 
@@ -186,6 +187,7 @@ export async function confirmNewPatient(input: { patientId: string }): Promise<R
     .update(patients)
     .set({ duplicateOfId: null, duplicateFlaggedAt: null, updatedAt: new Date() })
     .where(eq(patients.id, pair.entry.id));
+  await clearNotifications(admin.practiceId, "duplicate", pair.entry.id);
   revalidatePath("/", "layout");
   return { ok: true, name: pair.entry.name };
 }
@@ -227,6 +229,7 @@ export async function mergeIntoExisting(input: { patientId: string }): Promise<R
       .set({ status: "merged", mergedIntoId: into, duplicateOfId: null, duplicateFlaggedAt: null, updatedAt: new Date() })
       .where(eq(patients.id, from));
   });
+  await clearNotifications(admin.practiceId, "duplicate", from);
 
   revalidatePath("/", "layout");
   return { ok: true, name: pair.existing.name };

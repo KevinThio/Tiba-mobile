@@ -68,6 +68,13 @@ export const clinicians = pgTable("clinicians", {
   // Clinicians start "pending" and can't see patients until their practice admin
   // activates them. Admins can deactivate (and reactivate) them later; notes are kept.
   status: text("status", { enum: ["pending", "active", "deactivated"] }).notNull().default("pending"),
+  // Spec v2 discipline (src/lib/disciplines.ts): decides which notes the clinician can write.
+  // Null until they set it in Settings; then the note editor offers only their notes.
+  discipline: text("discipline"),
+  // Default fee for a visit, in minor units of visitFeeCurrency (Settings → Invoicing). Pre-fills
+  // the booking form when there's no earlier fee for that type of care.
+  visitFeeMinor: integer("visit_fee_minor"),
+  visitFeeCurrency: text("visit_fee_currency"),
   // Last invoice number issued. Incremented inside the invoice transaction so
   // numbers are sequential per clinician with no gaps (a Postgres sequence can skip).
   lastInvoiceNumber: integer("last_invoice_number").notNull().default(0),
@@ -84,6 +91,7 @@ export const clinicians = pgTable("clinicians", {
 }, (t) => [
   check("clinicians_role_check", sql`${t.role} in ('clinician', 'admin')`),
   check("clinicians_country_check", sql`${t.country} ~ '^[A-Z]{2}$'`),
+  check("clinicians_discipline_check", sql`${t.discipline} is null or ${t.discipline} in ('RN', 'LPN', 'PT', 'OT', 'SLP', 'HHA', 'MH')`),
   check("clinicians_status_check", sql`${t.status} in ('pending', 'active', 'deactivated')`),
   index("clinicians_practice_idx").on(t.practiceId),
 ]);
@@ -449,4 +457,31 @@ export const locations = pgTable(
     index("locations_practice_id_idx").on(t.practiceId),
     check("locations_has_service", sql`cardinality(${t.services}) > 0`),
   ],
+);
+
+// In-app notifications (spec v2 section 5b), one row per recipient. Admins get new invoices,
+// possible duplicates and new reviews; clinicians get contracts and invoice issues (when those
+// screens exist). title, detail and href are written when the notification is made.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    recipientId: text("recipient_id")
+      .notNull()
+      .references(() => clinicians.id, { onDelete: "cascade" }),
+    // "invoice", "duplicate", "review" (later: "contract", "invoice_issue", "unbilled").
+    type: text("type").notNull(),
+    // The thing it's about (an invoice, patient or review id), to clear it once handled.
+    refId: text("ref_id"),
+    title: text("title").notNull(),
+    detail: text("detail"),
+    // Where it opens: the screen where it's handled.
+    href: text("href").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => [index("notifications_recipient_idx").on(t.recipientId, t.readAt)],
 );

@@ -3,7 +3,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { reviews } from "@/db/schema";
+import { notifications, reviews } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 
 /**
@@ -17,6 +17,11 @@ export async function markReviewsSeen() {
     .update(reviews)
     .set({ seenAt: sql`now()` })
     .where(and(eq(reviews.practiceId, admin.practiceId), isNull(reviews.seenAt)));
+  // Opening the reviews deals with their notifications too.
+  await db
+    .update(notifications)
+    .set({ readAt: sql`now()` })
+    .where(and(eq(notifications.recipientId, admin.id), eq(notifications.type, "review"), isNull(notifications.readAt)));
 }
 
 /**

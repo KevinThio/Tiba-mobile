@@ -9,6 +9,7 @@ import { requireClinician } from "@/lib/auth";
 import { EmailNotConfiguredError, renderEmail, sendEmail } from "@/lib/email";
 import { formatMoney } from "@/lib/countries";
 import { invoiceNumberLabel, renderInvoicePdf } from "@/lib/invoice-pdf";
+import { notifyAdmins } from "@/lib/notifications";
 import { isValidTimeZone } from "@/lib/reminders";
 import { DUE_OPTIONS, DUE_ORDER, type Due, PERIODS, type Period } from "./periods";
 
@@ -179,11 +180,21 @@ export async function createInvoice(input: z.input<typeof createSchema>): Promis
     await tx.insert(invoiceItems).values(visits.map((v) => ({ invoiceId: invoice.id, appointmentId: v.id, feeMinor: v.feeMinor })));
     if (email) await tx.update(patients).set({ invoiceEmail: email }).where(eq(patients.id, visits[0].patientId));
 
-    return { ok: true as const, invoiceId: invoice.id, number };
+    return { ok: true as const, invoiceId: invoice.id, number, totalMinor, currency: visits[0].currency, patientId: visits[0].patientId };
   });
 
   if (!created.ok) return created;
+  // Spec v2: every invoice a clinician sends notifies the admin.
+  const [patient] = await db.select({ name: patients.fullName }).from(patients).where(eq(patients.id, created.patientId));
+  await notifyAdmins(clinician.practiceId, {
+    type: "invoice",
+    refId: created.invoiceId,
+    title: `${clinician.name} sent invoice ${invoiceNumberLabel(created.number)}`,
+    detail: `${formatMoney(created.totalMinor, clinician.country, created.currency)} · ${patient?.name ?? "Patient"}`,
+    href: "/admin/invoices",
+  });
   revalidatePath("/invoices");
+  revalidatePath("/admin", "layout");
   if (!email) return { ...created, emailed: false };
   return { ...created, ...(await sendInvoiceEmail(created.invoiceId, clinician.id, email)) };
 }

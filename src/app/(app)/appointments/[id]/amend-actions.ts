@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { appointments, notes, noteVersions } from "@/db/schema";
+import { disciplineProblem } from "@/lib/account";
 import { requireClinician } from "@/lib/auth";
+import type { Care } from "@/lib/note-templates";
 
 const MAX_REASON = 1000;
 
@@ -33,6 +35,9 @@ export async function startAmendment(raw: { appointmentId: string; reason: strin
   if (!note) return { ok: false, message: "We couldn't find this note. Please go back to Appointments." };
   const n = note.note;
   if (!n.signedAt || !n.clinicianSignature) return { ok: false, message: "This note isn't signed, so you can edit it directly." };
+  // Only reopen notes the clinician can still write, or they'd be stuck in an editor they can't use.
+  const notAllowed = await disciplineProblem(clinician.id, n.care as Care, n.kind);
+  if (notAllowed) return { ok: false, message: `${notAllowed} Add an addendum instead.` };
 
   await db.transaction(async (tx) => {
     // A cancelled amendment leaves the same version already copied; the copy is identical.

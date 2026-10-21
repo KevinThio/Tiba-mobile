@@ -23,11 +23,12 @@ type Props = {
   date: string; // YYYY-MM-DD
   clinicianName: string;
   currency: string;
+  visitFeeMinor: number | null;
   careTypes: { typeOfCare: string; feeMinor: number }[];
   onBooked: (appointment: AppointmentSummary) => void;
 };
 
-export function BookAppointmentDialog({ open, onOpenChange, date, clinicianName, currency, careTypes, onBooked }: Props) {
+export function BookAppointmentDialog({ open, onOpenChange, date, clinicianName, currency, visitFeeMinor, careTypes, onBooked }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
@@ -42,6 +43,7 @@ export function BookAppointmentDialog({ open, onOpenChange, date, clinicianName,
             date={date}
             clinicianName={clinicianName}
             currency={currency}
+            visitFeeMinor={visitFeeMinor}
             careTypes={careTypes}
             onBooked={onBooked}
             onCancel={() => onOpenChange(false)}
@@ -56,6 +58,7 @@ function BookingForm({
   date,
   clinicianName,
   currency,
+  visitFeeMinor,
   careTypes,
   onBooked,
   onCancel,
@@ -73,9 +76,9 @@ function BookingForm({
 
   function chooseCareType(type: string) {
     setTypeOfCare(type);
-    // Pre-fill the fee charged last time for this type of care.
-    const known = careTypes.find((c) => c.typeOfCare === type);
-    if (known && !fee) setFee(moneyInputValue(known.feeMinor, currency));
+    // Pre-fill the fee charged last time for this type of care, else the visit fee from Settings.
+    const known = careTypes.find((c) => c.typeOfCare === type)?.feeMinor ?? visitFeeMinor;
+    if (known != null && !fee) setFee(moneyInputValue(known, currency));
   }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {

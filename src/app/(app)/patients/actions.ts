@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { diagnosisCodes, patientDiagnoses, patients } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
+import { notifyAdmins } from "@/lib/notifications";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
 import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
 
@@ -93,7 +94,16 @@ export async function addPatientAsClinician(input: ClinicianAddPatientInput): Pr
     return created.id;
   });
 
+  if (match) {
+    await notifyAdmins(clinician.practiceId, {
+      type: "duplicate",
+      refId: id,
+      title: `Possible duplicate: ${v.fullName}`,
+      detail: `Added by ${clinician.name}`,
+      href: `/admin/patients/${id}/duplicate`,
+    });
+  }
   revalidatePath("/patients");
-  revalidatePath("/admin/patients");
+  revalidatePath("/", "layout");
   return { ok: true, id, name: v.fullName };
 }

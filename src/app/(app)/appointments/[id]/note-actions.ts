@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { appointments, clinicians, diagnosisCodes, notes } from "@/db/schema";
+import { disciplineProblem } from "@/lib/account";
 import { requireClinician } from "@/lib/auth";
 import { NOT_PREFILLED, type Care, type NoteKind } from "@/lib/note-templates";
 
@@ -46,6 +47,8 @@ export async function saveNoteDraft(input: z.input<typeof draftInput>): Promise<
   const parsed = draftInput.safeParse(input);
   if (!parsed.success) return { ok: false, message: "Something went wrong. Please refresh the page and try again." };
   const { appointmentId, kind, care, fields, dxCode } = parsed.data;
+  const notAllowed = await disciplineProblem(clinician.id, care, kind);
+  if (notAllowed) return { ok: false, message: notAllowed };
   if (JSON.stringify(fields).length > MAX_FIELDS_BYTES) {
     return { ok: false, message: "This note is too long to save. Please shorten the longest answers." };
   }

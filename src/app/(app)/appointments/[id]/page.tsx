@@ -1,13 +1,18 @@
 import { and, asc, desc, eq, exists, isNotNull } from "drizzle-orm";
+import { ShieldAlert } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { appointments, clinicians, diagnosisCodes, invoiceItems, noteAddenda, notes, noteVersions, patients, practices } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { summarise } from "@/lib/note-summary";
 import {
   CARE_LABEL,
+  KIND_LABEL,
   careFromTypeOfCare,
   getTemplate,
   noteTitle,
@@ -16,6 +21,8 @@ import {
   type Care,
   type NoteKind,
 } from "@/lib/note-templates";
+import { clinicianSettings } from "@/lib/account";
+import { canWriteCare, caresDescription, disciplineLabel, kindsForDiscipline } from "@/lib/disciplines";
 import { draftPlanFor, goalsFromEvaluation, hasSignedPlan } from "@/lib/note-context";
 import { practiceLogoUrl } from "@/lib/practice-logo";
 import { AmendmentBanner } from "./amend";
@@ -111,9 +118,31 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       />
     );
   }
-  const kinds = kindsFor(care, visit.servicesOrdered);
+  // Spec v2: each clinician writes the notes of their discipline (set in Settings).
+  const { discipline } = await clinicianSettings(clinician.id);
+  const kinds = kindsForDiscipline(discipline, kindsFor(care, visit.servicesOrdered));
   const suggested = kindFromTypeOfCare(visit.typeOfCare);
   const kind = (visit.noteKind as NoteKind | null) ?? (kinds.includes(suggested) ? suggested : "progress");
+  if (discipline && (!canWriteCare(discipline, care) || !kinds.includes(kind))) {
+    return (
+      <div className="grid grid-cols-1 gap-6">
+        <PageHeader back={{ href: "/appointments", label: "Appointments" }} overline={CARE_LABEL[care]} title={visit.patientName} />
+        <EmptyState
+          icon={ShieldAlert}
+          title="This note is for another discipline"
+          action={
+            <Button variant="outline" nativeButton={false} render={<Link href="/settings" />}>
+              Check your discipline
+            </Button>
+          }
+        >
+          This visit is for {CARE_LABEL[care].toLowerCase()}
+          {kind !== "progress" && ` (${KIND_LABEL[kind].toLowerCase()})`}. Your discipline is {disciplineLabel(discipline)}, so
+          you write {caresDescription(discipline)}. If your discipline is wrong, change it in Settings.
+        </EmptyState>
+      </div>
+    );
+  }
 
   const firstName = visit.patientName.split(" ")[0];
   const visitTimes = (

@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { clinicians, practices, reviews } from "@/db/schema";
+import { notifyAdmins } from "@/lib/notifications";
 import { normalisePracticeName } from "@/lib/practice-name";
 import { allow, clientIp } from "@/lib/rate-limit";
 
@@ -84,6 +85,10 @@ export async function submitReview(
   if (!practice) return { ok: false, message: "That practice isn't taking reviews on Tiba. Please check the name." };
   const seen = clinicianId && practice.clinicians.some((c) => c.id === clinicianId) ? clinicianId : null;
 
-  await db.insert(reviews).values({ practiceId, clinicianId: seen, rating, text, name: name || null });
+  const [review] = await db
+    .insert(reviews)
+    .values({ practiceId, clinicianId: seen, rating, text, name: name || null })
+    .returning({ id: reviews.id });
+  await notifyAdmins(practiceId, { type: "review", refId: review.id, title: `New review · ${rating} of 5`, href: "/admin/reviews" });
   return { ok: true };
 }

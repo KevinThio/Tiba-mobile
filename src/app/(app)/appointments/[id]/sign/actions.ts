@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { appointments, clinicians, notes, patients } from "@/db/schema";
+import { disciplineProblem } from "@/lib/account";
 import { requireClinician } from "@/lib/auth";
 import { goalsFromEvaluation, hasSignedPlan } from "@/lib/note-context";
 import { writeNote } from "@/lib/note-summary";
@@ -73,6 +74,8 @@ export async function signNote(raw: z.input<typeof input>): Promise<SignResult> 
 
   const care = visit.care as Care;
   const kind = visit.kind as NoteKind;
+  const notAllowed = await disciplineProblem(clinician.id, care, kind);
+  if (notAllowed) return { ok: false, message: notAllowed };
   if (care === "hha" && !(await hasSignedPlan(visit.patientId, clinician.practiceId))) {
     return { ok: false, message: "Aide visit notes stay locked until the aide service plan is signed." };
   }
