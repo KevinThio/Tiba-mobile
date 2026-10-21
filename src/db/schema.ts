@@ -10,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -279,6 +280,10 @@ export const notes = pgTable(
     clinicianSignature: text("clinician_signature"),
     patientSignature: text("patient_signature"),
     signedAt: timestamp("signed_at", { withTimezone: true }),
+    // Amendments: each signing is a version. Amending copies the signed version into
+    // note_versions first, then reopens the note as version + 1 with the reason.
+    version: integer("version").notNull().default(1),
+    amendmentReason: text("amendment_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -287,6 +292,34 @@ export const notes = pgTable(
     check("notes_signed_requires_clinician_signature", sql`${t.signedAt} is null or ${t.clinicianSignature} is not null`),
     check("notes_kind_check", sql`${t.kind} in ('progress', 'evaluation', 'service_plan', 'oasis')`),
   ],
+);
+
+// Earlier signed versions of an amended note, exactly as they were signed. Never changed or
+// deleted (a trigger in drizzle/0015 enforces it).
+export const noteVersions = pgTable(
+  "note_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    noteId: uuid("note_id")
+      .notNull()
+      .references(() => notes.id, { onDelete: "restrict" }),
+    version: integer("version").notNull(),
+    kind: text("kind").notNull(),
+    care: text("care").notNull(),
+    fields: jsonb("fields").$type<Record<string, unknown>>().notNull(),
+    dxCode: text("dx_code"),
+    body: text("body").notNull(),
+    clinicianSignature: text("clinician_signature").notNull(),
+    patientSignature: text("patient_signature"),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull(),
+    amendmentReason: text("amendment_reason"),
+    timeIn: timestamp("time_in", { withTimezone: true }),
+    timeOut: timestamp("time_out", { withTimezone: true }),
+    // When it was first set aside for an amendment. Why it was replaced is the next version's
+    // amendment_reason (on the next note_versions row, or on the note itself).
+    archivedAt: timestamp("archived_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("note_versions_note_version_idx").on(t.noteId, t.version)],
 );
 
 export const noteAddenda = pgTable(

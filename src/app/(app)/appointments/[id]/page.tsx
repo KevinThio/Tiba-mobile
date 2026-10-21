@@ -1,9 +1,9 @@
-import { and, asc, eq, exists, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, exists, isNotNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
-import { appointments, clinicians, diagnosisCodes, invoiceItems, noteAddenda, notes, patients, practices } from "@/db/schema";
+import { appointments, clinicians, diagnosisCodes, invoiceItems, noteAddenda, notes, noteVersions, patients, practices } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { summarise } from "@/lib/note-summary";
 import {
@@ -18,6 +18,7 @@ import {
 } from "@/lib/note-templates";
 import { draftPlanFor, goalsFromEvaluation, hasSignedPlan } from "@/lib/note-context";
 import { practiceLogoUrl } from "@/lib/practice-logo";
+import { AmendmentBanner } from "./amend";
 import { AideLock, NoteEditor } from "./note-editor";
 import { SignedNote } from "./signed-note";
 import { VisitTimes } from "./visit-times";
@@ -50,6 +51,8 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       noteFields: notes.fields,
       noteUpdatedAt: notes.updatedAt,
       noteSignedAt: notes.signedAt,
+      noteVersion: notes.version,
+      amendmentReason: notes.amendmentReason,
       dxCode: notes.dxCode,
       dxDescription: diagnosisCodes.description,
       body: notes.body,
@@ -74,6 +77,11 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       .from(noteAddenda)
       .where(eq(noteAddenda.noteId, visit.noteId))
       .orderBy(asc(noteAddenda.createdAt));
+    const versions = await db
+      .select({ version: noteVersions.version, body: noteVersions.body, signedAt: noteVersions.signedAt, reason: noteVersions.amendmentReason })
+      .from(noteVersions)
+      .where(eq(noteVersions.noteId, visit.noteId))
+      .orderBy(desc(noteVersions.version));
     const template = getTemplate((visit.noteKind as NoteKind | null) ?? "progress", care);
     const goals = (await goalsFromEvaluation(visit.patientId, care, clinician.practiceId))?.goals ?? [];
     const end = visit.timeOut ?? new Date(visit.startsAt.getTime() + visit.durationMinutes * 60_000);
@@ -97,6 +105,9 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
         patientSignature={visit.patientSignature}
         invoiced={Boolean(visit.invoiced)}
         addenda={addenda.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() }))}
+        version={visit.noteVersion ?? 1}
+        amendmentReason={visit.amendmentReason}
+        earlierVersions={versions.map((v) => ({ ...v, signedAt: v.signedAt.toISOString() }))}
       />
     );
   }
@@ -141,6 +152,25 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       }}
       evaluationGoals={await goalsFromEvaluation(visit.patientId, care, clinician.practiceId)}
       visitTimes={visitTimes}
+      notice={
+        visit.noteId && visit.amendmentReason && (visit.noteVersion ?? 1) > 1 ? (
+          <AmendmentBanner
+            appointmentId={id}
+            version={visit.noteVersion!}
+            reason={visit.amendmentReason}
+            previousSignedAt={(await previousSignedAt(visit.noteId, visit.noteVersion! - 1))?.toISOString() ?? null}
+          />
+        ) : null
+      }
     />
   );
+}
+
+/** When the version being amended was signed. */
+async function previousSignedAt(noteId: string, version: number) {
+  const [row] = await db
+    .select({ signedAt: noteVersions.signedAt })
+    .from(noteVersions)
+    .where(and(eq(noteVersions.noteId, noteId), eq(noteVersions.version, version)));
+  return row?.signedAt ?? null;
 }

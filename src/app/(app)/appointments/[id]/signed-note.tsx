@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { SummaryGroup } from "@/lib/note-summary";
 import { Addenda, DownloadNotePdf } from "./addenda";
+import { AmendNote } from "./amend";
 import { LocalTime } from "./local-time";
 
 type Props = {
@@ -28,6 +29,10 @@ type Props = {
   patientSignature: string | null;
   invoiced: boolean;
   addenda: { id: string; body: string; createdAt: string }[];
+  version: number;
+  amendmentReason: string | null;
+  /** Earlier signed versions, newest first. */
+  earlierVersions: { version: number; body: string; signedAt: string; reason: string | null }[];
 };
 
 /**
@@ -66,13 +71,23 @@ export function SignedNote(p: Props) {
             Signed at <LocalTime iso={p.signedAt} format="time" /> by you{p.patientSignature ? ` and ${first}` : ""}
           </span>
         </p>
-        <p className="text-small text-muted-foreground">Signed notes are locked. Add an addendum if something changes.</p>
+        {p.version > 1 && p.amendmentReason && (
+          <p className="text-small break-words">
+            <span className="font-semibold">Amended (version {p.version}):</span> {p.amendmentReason}
+          </p>
+        )}
+        <p className="text-small text-muted-foreground">
+          Signed notes are locked. To correct a mistake, amend the note: the signed version is kept. To add something
+          later, add an addendum.
+        </p>
+        <AmendNote appointmentId={p.appointmentId} />
       </div>
 
       <div className="flex flex-wrap gap-2">
         <Badge variant="neutral">{p.careLabel}</Badge>
         {p.dx && <Badge variant="info">{p.dx}</Badge>}
         {p.invoiced && <Badge variant="success">Invoiced</Badge>}
+        {p.version > 1 && <Badge variant="warning">Amended · version {p.version}</Badge>}
       </div>
 
       <article className="grid w-full max-w-3xl gap-6 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-10">
@@ -108,6 +123,38 @@ export function SignedNote(p: Props) {
       </article>
 
       <Addenda appointmentId={p.appointmentId} clinicianName={p.clinicianName} addenda={p.addenda} />
+
+      {p.earlierVersions.length > 0 && (
+        <details className="group w-full max-w-3xl rounded-lg border border-border-subtle bg-card shadow-xs">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-5 py-4 font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+            Earlier versions ({p.earlierVersions.length})
+            <ChevronDown className="size-5 text-muted-foreground transition-transform duration-200 group-open:rotate-180" aria-hidden />
+          </summary>
+          <ol className="grid gap-4 border-t border-border-subtle px-5 py-5">
+            {p.earlierVersions.map((v) => {
+              const replacedBy = p.earlierVersions.find((x) => x.version === v.version + 1)?.reason ?? p.amendmentReason;
+              return (
+                <li key={v.version} className="grid gap-2 rounded-md border-l-4 border-l-border-strong bg-muted px-4 py-3">
+                  <p className="text-small font-semibold">
+                    Version {v.version} · signed <LocalTime iso={v.signedAt} format="signed" />
+                  </p>
+                  {replacedBy && <p className="text-small text-muted-foreground break-words">Replaced because: {replacedBy}</p>}
+                  <div className="grid gap-2 text-small">
+                    {v.body
+                      .split(/\n{2,}/)
+                      .filter((para) => para.trim())
+                      .map((para, i) => (
+                        <p key={i} className="whitespace-pre-line">
+                          {para}
+                        </p>
+                      ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </details>
+      )}
 
       <details className="group w-full max-w-3xl rounded-lg border border-border-subtle bg-card shadow-xs">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-5 py-4 font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">

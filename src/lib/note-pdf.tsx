@@ -2,7 +2,7 @@ import "server-only";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { appointments, clinicians, diagnosisCodes, noteAddenda, notes, patients, practices } from "@/db/schema";
+import { appointments, clinicians, diagnosisCodes, noteAddenda, notes, noteVersions, patients, practices } from "@/db/schema";
 import { CARE_LABEL, noteTitle, type Care } from "@/lib/note-templates";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
 import { isValidTimeZone } from "@/lib/reminders";
@@ -16,6 +16,7 @@ const FERN_PALE = "#E6F2EB";
 const INK = "#25282D";
 const MUTED = "#686D76";
 const BORDER = "#DFE0E5";
+const AMBER = "#F3DCA3";
 
 const s = StyleSheet.create({
   page: { paddingTop: 48, paddingHorizontal: 48, paddingBottom: 64, fontFamily: "Helvetica", fontSize: 10.5, color: INK, lineHeight: 1.45 },
@@ -36,6 +37,7 @@ const s = StyleSheet.create({
   sigBox: { height: 58, justifyContent: "center", alignItems: "center", borderBottomWidth: 1, borderBottomColor: BORDER, marginVertical: 4 },
   sigImage: { maxHeight: 54, maxWidth: "100%", objectFit: "contain" },
   sigLine: { fontSize: 9, gap: 1 },
+  amended: { marginTop: 12, padding: 10, borderWidth: 1, borderColor: AMBER, borderRadius: 6, gap: 2 },
   addenda: { marginTop: 22, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
   addendum: { marginTop: 10 },
   footer: { position: "absolute", left: 48, right: 48, bottom: 32, fontSize: 8, color: MUTED },
@@ -49,6 +51,8 @@ export async function loadNoteForPdf(appointmentId: string, clinicianId: string)
       care: notes.care,
       body: notes.body,
       signedAt: notes.signedAt,
+      version: notes.version,
+      amendmentReason: notes.amendmentReason,
       clinicianSignature: notes.clinicianSignature,
       patientSignature: notes.patientSignature,
       dxCode: notes.dxCode,
@@ -77,7 +81,12 @@ export async function loadNoteForPdf(appointmentId: string, clinicianId: string)
     .from(noteAddenda)
     .where(eq(noteAddenda.noteId, note.noteId))
     .orderBy(asc(noteAddenda.createdAt));
-  return { ...note, signedAt: note.signedAt, addenda };
+  const versions = await db
+    .select({ version: noteVersions.version, signedAt: noteVersions.signedAt, reason: noteVersions.amendmentReason })
+    .from(noteVersions)
+    .where(eq(noteVersions.noteId, note.noteId))
+    .orderBy(asc(noteVersions.version));
+  return { ...note, signedAt: note.signedAt, addenda, versions };
 }
 
 type NoteData = NonNullable<Awaited<ReturnType<typeof loadNoteForPdf>>>;
@@ -115,6 +124,17 @@ function NoteDocument({ data, timeZone }: { data: NoteData; timeZone: string }) 
           {CARE_LABEL[care]}
           {data.dxCode ? ` · ${data.dxCode} ${data.dxDescription ?? ""}`.trimEnd() : ""}
         </Text>
+
+        {data.version > 1 && (
+          <View style={s.amended}>
+            <Text style={s.bold}>Amended note · version {data.version}</Text>
+            {data.amendmentReason && <Text>Reason: {data.amendmentReason}</Text>}
+            <Text style={s.muted}>
+              {data.versions.map((v) => `Version ${v.version} signed ${stamp(v.signedAt)}`).join(" · ")}. Earlier versions are
+              kept in Tiba.
+            </Text>
+          </View>
+        )}
 
         <View style={s.details}>
           <View style={s.detail}>

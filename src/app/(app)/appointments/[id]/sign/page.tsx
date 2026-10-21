@@ -37,6 +37,7 @@ export default async function SignNotePage({ params }: PageProps<"/appointments/
       fields: notes.fields,
       updatedAt: notes.updatedAt,
       signedAt: notes.signedAt,
+      version: notes.version,
       dxCode: notes.dxCode,
       dxDescription: diagnosisCodes.description,
     })
@@ -84,6 +85,7 @@ export default async function SignNotePage({ params }: PageProps<"/appointments/
   }
 
   const end = visit.timeOut ?? new Date(visit.startsAt.getTime() + visit.durationMinutes * 60_000);
+  const amendment = visit.version && visit.version > 1 ? `Amendment (version ${visit.version}) · ` : "";
   const kindLabel = isDiscipline(template.care) && template.kind !== "progress" ? `${KIND_LABEL[template.kind]} · ` : "";
   return (
     <SignForm
@@ -93,7 +95,7 @@ export default async function SignNotePage({ params }: PageProps<"/appointments/
       clinicianName={clinician.name}
       from={(visit.timeIn ?? visit.startsAt).toISOString()}
       to={end.toISOString()}
-      careLine={`${kindLabel}${CARE_LABEL[template.care]}${visit.dxCode ? ` · ${visit.dxCode} ${visit.dxDescription ?? ""}`.trimEnd() : ""}`}
+      careLine={`${amendment}${kindLabel}${CARE_LABEL[template.care]}${visit.dxCode ? ` · ${visit.dxCode} ${visit.dxDescription ?? ""}`.trimEnd() : ""}`}
       summary={summarise(template, visit.fields ?? {}, goals)}
     />
   );

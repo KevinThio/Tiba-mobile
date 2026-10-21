@@ -37,6 +37,8 @@ type Props = {
   evaluationGoals: { goals: Goal[]; from: string } | null;
   /** The visit times card (time in and out), rendered by the server page. */
   visitTimes: React.ReactNode;
+  /** A banner under the header, e.g. while amending a signed note. */
+  notice?: React.ReactNode;
 };
 
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -50,7 +52,7 @@ const TIME = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digi
  * diagnosis code, sections for that template, progress, autosaved drafts, prefill from the last
  * visit, and Continue to sign.
  */
-export function NoteEditor({ appointmentId, patientName, startsAt, durationMinutes, kinds, initial, evaluationGoals, visitTimes }: Props) {
+export function NoteEditor({ appointmentId, patientName, startsAt, durationMinutes, kinds, initial, evaluationGoals, visitTimes, notice }: Props) {
   const router = useRouter();
   const [kind, setKind] = useState(initial.kind);
   const [care, setCare] = useState(initial.care);
@@ -235,7 +237,9 @@ export function NoteEditor({ appointmentId, patientName, startsAt, durationMinut
         actions={<div className="hidden flex-wrap gap-2 md:flex">{actions}</div>}
       />
 
-      {kind === "progress" && prefill?.ok && !undo && (
+      {notice}
+
+      {kind === "progress" && !notice && prefill?.ok && !undo && (
         <Banner tone="fern" icon={<Copy className="size-5" aria-hidden />}>
           <span className="min-w-[12rem] flex-1">
             <span className="block font-semibold">Start from the last visit?</span>
