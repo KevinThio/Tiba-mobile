@@ -7,10 +7,10 @@ import { db } from "@/db";
 import { appointments, clinicians, invoiceItems, invoices, notes, patients } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { EmailNotConfiguredError, renderEmail, sendEmail } from "@/lib/email";
-import { formatFee } from "@/lib/format";
+import { formatMoney } from "@/lib/countries";
 import { invoiceNumberLabel, renderInvoicePdf } from "@/lib/invoice-pdf";
 import { isValidTimeZone } from "@/lib/reminders";
-import { PERIODS, type Period } from "./periods";
+import { DUE_OPTIONS, DUE_ORDER, type Due, PERIODS, type Period } from "./periods";
 
 
 export type InvoiceableVisit = {
@@ -19,6 +19,7 @@ export type InvoiceableVisit = {
   durationMinutes: number;
   typeOfCare: string;
   feeMinor: number;
+  currency: string;
   patientId: string;
   patientName: string;
   invoiceEmail: string | null;
@@ -42,6 +43,7 @@ export async function listVisitsForInvoicing(period: Period): Promise<Invoiceabl
       durationMinutes: appointments.durationMinutes,
       typeOfCare: appointments.typeOfCare,
       feeMinor: appointments.feeMinor,
+      currency: appointments.currency,
       patientId: patients.id,
       patientName: patients.fullName,
       invoiceEmail: patients.invoiceEmail,
@@ -73,6 +75,8 @@ export type InvoiceSummary = {
   patientName: string;
   createdAt: string;
   totalMinor: number;
+  currency: string;
+  dueDate: string | null;
   visits: number;
   sentTo: string | null;
   sentAt: string | null;
@@ -87,6 +91,8 @@ export async function listInvoices(): Promise<InvoiceSummary[]> {
       patientName: patients.fullName,
       createdAt: invoices.createdAt,
       totalMinor: invoices.totalMinor,
+      currency: invoices.currency,
+      dueDate: invoices.dueDate,
       sentTo: invoices.sentTo,
       sentAt: invoices.sentAt,
       visits: db.$count(invoiceItems, eq(invoiceItems.invoiceId, invoices.id)),
@@ -105,6 +111,7 @@ const createSchema = z.object({
   appointmentIds: z.array(z.uuid()).min(1, "Tick at least one visit.").max(200),
   email: z.union([z.literal(""), emailSchema]).optional(),
   timeZone: z.string().refine(isValidTimeZone).optional(),
+  due: z.enum(DUE_ORDER as [Due, ...Due[]]).default("receipt"),
 });
 
 type EmailOutcome = { emailed: true; to: string } | { emailed: false; emailError?: string };
@@ -124,9 +131,14 @@ export async function createInvoice(input: z.input<typeof createSchema>): Promis
         patientId: appointments.patientId,
         startsAt: appointments.startsAt,
         feeMinor: appointments.feeMinor,
+        currency: appointments.currency,
         invoiced: invoiceItems.invoiceId,
+        signed: isNotNull(notes.signedAt),
+        timeZone: clinicians.timeZone,
       })
       .from(appointments)
+      .innerJoin(clinicians, eq(clinicians.id, appointments.clinicianId))
+      .leftJoin(notes, eq(notes.appointmentId, appointments.id))
       .leftJoin(invoiceItems, eq(invoiceItems.appointmentId, appointments.id))
       .where(and(eq(appointments.clinicianId, clinician.id), inArray(appointments.id, ids)));
 
@@ -134,6 +146,11 @@ export async function createInvoice(input: z.input<typeof createSchema>): Promis
     if (new Set(visits.map((v) => v.patientId)).size > 1) return { ok: false as const, message: "An invoice is for one patient. Please tick visits for one patient at a time." };
     if (visits.some((v) => v.invoiced)) return { ok: false as const, message: "One of those visits is already on an invoice. Please refresh and try again." };
     if (visits.some((v) => v.startsAt > new Date())) return { ok: false as const, message: "Only visits that have happened can be invoiced." };
+    if (new Set(visits.map((v) => v.currency)).size > 1) {
+      return { ok: false as const, message: "Those visits were booked in different currencies. Invoice them separately." };
+    }
+    // Spec v2: only signed visits can be invoiced.
+    if (visits.some((v) => !v.signed)) return { ok: false as const, message: "Sign the visit notes first. Only signed visits can be invoiced." };
 
     // Gap-free numbering: take the next number in this transaction.
     const [{ number }] = await tx
@@ -146,9 +163,18 @@ export async function createInvoice(input: z.input<typeof createSchema>): Promis
       .returning({ number: clinicians.lastInvoiceNumber });
 
     const totalMinor = visits.reduce((sum, v) => sum + v.feeMinor, 0);
+    const zone = parsed.data.timeZone ?? visits[0].timeZone ?? "UTC";
     const [invoice] = await tx
       .insert(invoices)
-      .values({ clinicianId: clinician.id, number, patientId: visits[0].patientId, totalMinor })
+      .values({
+        clinicianId: clinician.id,
+        number,
+        patientId: visits[0].patientId,
+        totalMinor,
+        // The visits' currency: what they were booked in, whatever the practice uses now.
+        currency: visits[0].currency,
+        dueDate: dueDateFrom(new Date(), DUE_OPTIONS[parsed.data.due].days, zone),
+      })
       .returning({ id: invoices.id });
     await tx.insert(invoiceItems).values(visits.map((v) => ({ invoiceId: invoice.id, appointmentId: v.id, feeMinor: v.feeMinor })));
     if (email) await tx.update(patients).set({ invoiceEmail: email }).where(eq(patients.id, visits[0].patientId));
@@ -182,8 +208,9 @@ async function sendInvoiceEmail(invoiceId: string, clinicianId: string, to: stri
       heading: `Invoice ${label}`,
       intro: `Please find attached invoice ${label} from ${data.practiceName}.`,
       rows: [
-        ["Total", formatFee(data.totalMinor)],
+        ["Total", formatMoney(data.totalMinor, data.country, data.currency)],
         ["Visits", String(data.items.length)],
+        ["Payment due", data.dueLabel],
       ],
       outro: `Any questions? Just reply to ${data.clinicianEmail}.`,
     });
@@ -212,4 +239,12 @@ async function sendInvoiceEmail(invoiceId: string, clinicianId: string, to: stri
           : "The invoice is saved, but we couldn't email it just now. You can send it from the list below.",
     };
   }
+}
+
+/** The invoice date in the clinician's time zone, plus the days allowed to pay ("YYYY-MM-DD"). */
+function dueDateFrom(now: Date, days: number, timeZone: string) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const due = new Date(`${today}T00:00:00Z`);
+  due.setUTCDate(due.getUTCDate() + days);
+  return due.toISOString().slice(0, 10);
 }

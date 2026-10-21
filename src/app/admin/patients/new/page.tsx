@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
 import { clinicians } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
-import { INSURERS } from "@/lib/patient-options";
+import { insurersFor } from "@/lib/patient-options";
 import { AddPatientForm } from "./add-patient-form";
 
 /** Admin Add patient (spec v2 section 4b): the patient joins the practice for one clinician. */
@@ -20,7 +20,7 @@ export default async function AdminAddPatientPage() {
   return (
     <div className="grid grid-cols-1 gap-8">
       <PageHeader overline="New patient" title="Add a patient" back={{ href: "/admin/patients", label: "Patients" }} />
-      <AddPatientForm clinicians={team} insurers={INSURERS[admin.country === "KE" ? "KE" : "US"]} />
+      <AddPatientForm clinicians={team} insurers={insurersFor(admin.country)} />
     </div>
   );
 }

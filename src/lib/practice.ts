@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { clinicians, patients, practices, reviews } from "@/db/schema";
+import { billingCurrency } from "@/lib/countries";
 import { practiceLogoUrl } from "@/lib/practice-logo";
 
 /** The practice's logo URL, or null when it has none. Only checks that a logo exists; the image comes from /api/practice-logo. */
@@ -56,4 +57,14 @@ export function possibleDuplicates(practiceId: string) {
     .from(patients)
     .where(and(eq(patients.practiceId, practiceId), isNotNull(patients.duplicateFlaggedAt), ne(patients.status, "merged")))
     .orderBy(asc(patients.duplicateFlaggedAt));
+}
+
+/** The practice's country and the currency it bills in (the admin's choice, else the country's). */
+export async function practiceBilling(practiceId: string) {
+  const [row] = await db
+    .select({ country: practices.country, currency: practices.currency })
+    .from(practices)
+    .where(eq(practices.id, practiceId));
+  const country = row?.country ?? "US";
+  return { country, currency: billingCurrency({ country, currency: row?.currency ?? null }), chosen: row?.currency ?? null };
 }

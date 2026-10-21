@@ -18,7 +18,12 @@ export function aideNeedsSkilledCare(services: readonly string[]) {
 }
 
 /** Insurers offered for the practice's country, after Self-pay. "Other" is typed in. */
-export const INSURERS: Record<"US" | "KE", string[]> = {
+const INSURERS: Record<string, string[]> = {
   US: ["Self-pay", "Aetna", "Blue Cross Blue Shield", "Cigna", "UnitedHealthcare", "Medicaid", "Medicare"],
   KE: ["Self-pay", "SHA (Social Health Authority)", "AAR Insurance", "Britam", "Jubilee Health", "CIC Insurance", "Madison"],
 };
+
+// Countries without a list yet get the general kinds of cover.
+const GENERAL_INSURERS = ["Self-pay", "Private insurance", "Public or government scheme", "Employer scheme"];
+
+export const insurersFor = (country: string) => INSURERS[country] ?? GENERAL_INSURERS;

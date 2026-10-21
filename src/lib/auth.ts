@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { isCountryCode } from "@/lib/countries";
 import { renderEmail, sendEmail } from "@/lib/email";
 import { notifyAdminsOfNewClinician, placeNewAccount } from "@/lib/practice-join";
 
@@ -71,11 +72,12 @@ export const auth = betterAuth({
         defaultValue: "clinician",
         validator: { input: z.enum(["clinician", "admin"]) },
       },
+      // ISO 3166-1 code of the practice's country (any country; sets the currency).
       country: {
-        type: ["US", "KE"],
+        type: "string",
         required: true,
         defaultValue: "US",
-        validator: { input: z.enum(["US", "KE"]) },
+        validator: { input: z.string().refine(isCountryCode, "Pick your country from the list.") },
       },
     },
   },

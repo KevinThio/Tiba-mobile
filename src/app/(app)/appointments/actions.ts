@@ -5,7 +5,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { appointments, invoiceItems, notes, patients } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
-import { parseFeeToMinor } from "@/lib/format";
+import { currencyDigits, parseMoneyToMinor } from "@/lib/countries";
+import { practiceBilling } from "@/lib/practice";
 import { notesToDoCounts } from "@/lib/notes";
 
 export type AppointmentSummary = {
@@ -112,13 +113,18 @@ export async function searchPatients(query: string): Promise<PatientOption[]> {
     .limit(8);
 }
 
-/** Types of care used before, each with the fee charged most recently, to pre-fill the booking form. */
+/**
+ * Types of care used before, each with the fee charged most recently, to pre-fill the booking
+ * form. Only fees in the practice's current billing currency, so a pre-filled amount is never
+ * in another currency.
+ */
 export async function getCareTypes(): Promise<{ typeOfCare: string; feeMinor: number }[]> {
   const clinician = await requireClinician();
+  const { currency } = await practiceBilling(clinician.practiceId);
   return db
     .selectDistinctOn([appointments.typeOfCare], { typeOfCare: appointments.typeOfCare, feeMinor: appointments.feeMinor })
     .from(appointments)
-    .where(eq(appointments.clinicianId, clinician.id))
+    .where(and(eq(appointments.clinicianId, clinician.id), eq(appointments.currency, currency)))
     .orderBy(appointments.typeOfCare, desc(appointments.createdAt))
     .limit(20);
 }
@@ -154,9 +160,15 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Please check the details and try again." };
   }
   const { startsAt, durationMinutes, typeOfCare, fee, patient } = parsed.data;
-  const feeMinor = parseFeeToMinor(fee);
+  const { currency } = await practiceBilling(clinician.practiceId);
+  const feeMinor = parseMoneyToMinor(fee, currency);
   if (feeMinor === null) {
-    return { ok: false, message: "Add the fee as a number, for example 2500 or 2500.50." };
+    return {
+      ok: false,
+      message: currencyDigits(currency)
+        ? `Add the fee as a number, for example 2500 or 2500.${"5".repeat(currencyDigits(currency))}.`
+        : "Add the fee as a whole number, for example 2500.",
+    };
   }
 
   return db.transaction(async (tx) => {
@@ -194,6 +206,7 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
         durationMinutes,
         typeOfCare,
         feeMinor,
+        currency,
       })
       .returning();
 

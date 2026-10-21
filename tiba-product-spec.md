@@ -23,7 +23,7 @@ Core action is unchanged: *write and sign a note for a patient visit.*
 | Patients | Signed on the device | Also leave reviews for the practice from the sign-in page, with no account. |
 | States | Normal only | Every screen has live, loading and error versions. |
 | Practices | Solo clinicians only | Group practices with several clinicians and locations. |
-| Currency | Not set | Set by the practice country: US dollars or Kenyan shillings. |
+| Currency | Not set | The practice country's standard currency (any country in the world), or another billing currency the admin chooses in Settings. |
 
 ### In the 20 Oct update
 
@@ -73,7 +73,7 @@ Core action is unchanged: *write and sign a note for a patient visit.*
 | Password | At least 8 characters. |
 | Type of account | Clinician or Administrator. Required. Asked before the practice name, because the fields below depend on it. |
 | Practice name | Required. An administrator creates the practice with this name; a clinician joins the practice with this name (see **Joining a practice**). |
-| Country | Administrators only: United States or Kenya. Sets the currency ($ or KSh). Clinicians use their practice's country. |
+| Country | Administrators only: any country in the world (updated 21 Oct 2026; was United States or Kenya). Sets the currency to that country's standard one. Clinicians use their practice's country. |
 | Practice logo | Administrators only, and required: "Admins need to add the practice logo." Clinicians use their practice's logo. |
 
 The practice name and logo form the **letterhead** at the top of every signed note, invoice, service agreement and contract, on screen and in the PDF. With no logo, the letterhead shows the practice name (contracts show initials and ask the admin to add a logo).
@@ -376,7 +376,7 @@ Actions that save (sign in, sign up, sign and save, send invoice, send contract)
 - Phone and desktop from one design. Desktop layout from 860px wide.
 - Phone: 64px top bar, 72px bottom tabs on main screens; main buttons sit in a bar at the bottom of detail screens, with a back link to the screen you came from.
 - Desktop: side menu, buttons in the page header, content up to 1120px wide. Forms are up to 480px wide.
-- The practice country sets the currency: United States uses US dollars, shown as $80.00; Kenya uses Kenyan shillings, shown as KSh 8,000. Country is picked at sign-up and can be changed in Settings. Dates read 12 Sep 2026.
+- The practice country sets the currency: each country's standard currency, written the way that country writes it (United States $80.00, Kenya Ksh 8,000.00, United Kingdom £80.00, Japan ¥8,000). Country is picked at sign-up from every country in the world and can be changed in Settings; invoices already made keep their currency. Dates read 12 Sep 2026.
 - Visual style follows the Tiba design system (Fern and Lilac colours, Young Serif and Figtree).
 
 ## 10. Data
@@ -428,7 +428,7 @@ Each step builds on the one before. Section 14 has the details for each screen.
 1. **Foundations:** practices and account types (clinician or admin), country and currency, discipline; sign up and sign in updated to match (password 8+, country, account type, admin logo required); clinicians joining a practice and the admin verifying them. *Done 20 Oct 2026, except discipline.*
 2. **Clinician core:** Appointments (week strip, statuses), Visit note for therapy types (drafts, sections, progress), Sign note, Signed note (written note, addenda), Notes to do.
 3. **Patients:** Patients list, Add patient (services ordered, duplicate check), Patient record (care team).
-4. **Billing:** Invoice from signed visits (due date, currency), merged with the existing Invoices screen.
+4. **Billing:** Invoice from signed visits (due date, currency), merged with the existing Invoices screen. *Done 21 Oct 2026, with every country's currency.*
 5. **Settings and account:** discipline, patients-sign toggle, country, visit fee; Notifications.
 6. **Discipline notes:** SOAP notes with measures, level rows and billing codes; evaluations and goals; progress notes and prefill; aide service plan and the aide visit lock.
 7. **Admin app:** Overview, Clinicians and profiles, Patients and duplicate review, Completed notes, Invoices (payments and issues), Insurance billing, Locations, Settings, More. *Clinicians, Patients (list, Add patient with duplicate check, Discharge and Reactivate), Appointments, Locations (list and Add location) and Patient reviews done 21 Oct 2026; location profile (files, remove), patient details and duplicate review screens still to come.*
@@ -502,7 +502,8 @@ These patterns were built in the design project on top of the Tiba Design System
 - **Written notes:** fixed sentence pattern or AI writing?
 - **Signature images in PDFs:** the prototype records an electronic-signature line; should the drawn signature appear too?
 - **Reviews:** patients find the practice by name or through its review link; admins can hide but not delete reviews. Should admins be able to reply? Should the link come with a printable QR code?
-- **Currency:** sample prices show as $80.00 or KSh 8,000. Should one practice be able to bill in both currencies at once?
+- **Currency:** decided 21 Oct 2026: a practice bills in its country's currency by default, and the admin can choose any other billing currency in Settings (e.g. US dollars in Kenya). Each visit keeps the currency it was booked in.
+- **Insurers outside the US and Kenya:** other countries get general kinds of cover (private, public scheme, employer). Which insurer lists matter next?
 - **Notifications by email:** should any in-app notification (contract to sign, invoice issue) also send an email?
 - **Billing codes:** the CPT and G codes are US codes. What do Kenyan practices use?
 - **More than one admin:** a practice has one admin for now (a second admin sign-up with the same name is refused). Should an admin be able to add another admin?

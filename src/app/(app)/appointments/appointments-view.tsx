@@ -17,6 +17,8 @@ import { TomorrowCard } from "./tomorrow-card";
 
 type Props = {
   clinicianName: string;
+  /** The practice's billing currency (ISO 4217), for the fee on new bookings. */
+  currency: string;
   careTypes: { typeOfCare: string; feeMinor: number }[];
 };
 
@@ -60,7 +62,7 @@ function addDays(date: Date, days: number) {
  * that have notes to do, the day's visits with their status, a reminder that links to Notes to do,
  * booking, and the Tomorrow card (kept from v1.1).
  */
-export function AppointmentsView({ clinicianName, careTypes: initialCareTypes }: Props) {
+export function AppointmentsView({ clinicianName, currency, careTypes: initialCareTypes }: Props) {
   // Captured once when the screen opens; used for "today" and visit status.
   const [now] = useState(() => Date.now());
   const todayKey = toDateKey(new Date(now));
@@ -219,6 +221,7 @@ export function AppointmentsView({ clinicianName, careTypes: initialCareTypes }:
         onOpenChange={setBookingOpen}
         date={selected}
         clinicianName={clinicianName}
+        currency={currency}
         careTypes={careTypes}
         onBooked={onBooked}
       />

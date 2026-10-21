@@ -5,7 +5,8 @@ import { FormAlert } from "@/components/form-alert";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatFee } from "@/lib/format";
+import { ChoiceChip } from "@/components/choice-chip";
+import { DUE_OPTIONS, DUE_ORDER, type Due } from "./periods";
 
 /**
  * Confirm step for creating an invoice (or re-sending one). The email is optional when
@@ -20,17 +21,20 @@ export function InvoiceEmailDialog({
   defaultEmail,
   emailRequired,
   submitLabel,
+  withDue = false,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description: string;
-  summary?: { patientName: string; visits: number; totalMinor: number };
+  summary?: { patientName: string; visits: number; total: string };
   defaultEmail: string;
   emailRequired: boolean;
   submitLabel: (hasEmail: boolean) => string;
-  onSubmit: (email: string) => Promise<string | null>; // returns an error message, or null when done
+  /** Ask for "Payment due" (new invoices only). */
+  withDue?: boolean;
+  onSubmit: (email: string, due: Due) => Promise<string | null>; // returns an error message, or null when done
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,6 +49,7 @@ export function InvoiceEmailDialog({
             defaultEmail={defaultEmail}
             emailRequired={emailRequired}
             submitLabel={submitLabel}
+            withDue={withDue}
             onSubmit={onSubmit}
             onCancel={() => onOpenChange(false)}
           />
@@ -59,17 +64,20 @@ function EmailForm({
   defaultEmail,
   emailRequired,
   submitLabel,
+  withDue,
   onSubmit,
   onCancel,
 }: {
-  summary?: { patientName: string; visits: number; totalMinor: number };
+  summary?: { patientName: string; visits: number; total: string };
   defaultEmail: string;
   emailRequired: boolean;
   submitLabel: (hasEmail: boolean) => string;
-  onSubmit: (email: string) => Promise<string | null>;
+  withDue: boolean;
+  onSubmit: (email: string, due: Due) => Promise<string | null>;
   onCancel: () => void;
 }) {
   const [email, setEmail] = useState(defaultEmail);
+  const [due, setDue] = useState<Due>("receipt");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -78,7 +86,7 @@ function EmailForm({
     setPending(true);
     setError(null);
     try {
-      const message = await onSubmit(email.trim());
+      const message = await onSubmit(email.trim(), due);
       if (message) setError(message);
     } catch {
       setError("Something went wrong just now. Please try again.");
@@ -101,9 +109,21 @@ function EmailForm({
           </div>
           <div>
             <dt className="text-muted-foreground">Total</dt>
-            <dd className="font-medium tabular-nums">{formatFee(summary.totalMinor)}</dd>
+            <dd className="font-medium tabular-nums">{summary.total}</dd>
           </div>
         </dl>
+      )}
+      {withDue && (
+        <fieldset className="grid gap-2">
+          <legend className="mb-2 text-sm font-medium">Payment due</legend>
+          <div role="radiogroup" aria-label="Payment due" className="flex flex-wrap gap-2">
+            {DUE_ORDER.map((d) => (
+              <ChoiceChip key={d} single size="sm" on={due === d} onClick={() => setDue(d)}>
+                {DUE_OPTIONS[d].label}
+              </ChoiceChip>
+            ))}
+          </div>
+        </fieldset>
       )}
       <FormField
         label={emailRequired ? "Email the invoice to" : "Email the invoice to (optional)"}

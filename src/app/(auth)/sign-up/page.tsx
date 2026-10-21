@@ -3,7 +3,7 @@
 import { Building2, Check, Loader2, Lock, Mail, Stethoscope, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AuthHeading } from "@/components/auth-heading";
 import { FormAlert } from "@/components/form-alert";
@@ -14,21 +14,18 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { authClient } from "@/lib/auth-client";
+import { countryFromLocale, countryOptions, currencyLabel } from "@/lib/countries";
 import { updatePractice } from "@/lib/practice-actions";
+import { useMounted } from "@/lib/use-mounted";
 import { cn } from "@/lib/utils";
 
 type Role = "clinician" | "admin";
-type Country = "US" | "KE";
 type Field = "name" | "email" | "password" | "practiceName" | "logo";
 type Problem = { field: Field | "form"; message: React.ReactNode };
 
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 8;
 
-const CURRENCY_HINT: Record<Country, string> = {
-  US: "Prices will show in US dollars ($).",
-  KE: "Prices will show in Kenyan shillings (KSh).",
-};
 
 const ROLES: { value: Role; title: string; body: string; icon: LucideIcon }[] = [
   { value: "clinician", title: "Clinician", body: "Write notes, sign and invoice your patients.", icon: Stethoscope },
@@ -45,7 +42,17 @@ export default function SignUpPage() {
   const [pending, setPending] = useState(false);
   const [logo, setLogo] = useState<string | null>(null);
   const [role, setRole] = useState<Role>("clinician");
-  const [country, setCountry] = useState<Country>("US");
+  const [country, setCountry] = useState("US");
+  // Country and currency names come from the browser's Intl data; until then show the code.
+  const mounted = useMounted();
+  const countries = useMemo(() => (mounted ? countryOptions() : [{ code: country, name: country }]), [mounted, country]);
+
+  // Start the country picker at the browser's region (en-KE → Kenya), once, after mount.
+  useEffect(() => {
+    const guess = countryFromLocale(navigator.language);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read once from the browser after mount
+    if (guess) setCountry(guess);
+  }, []);
   const [password, setPassword] = useState("");
 
   const errorFor = (field: Field) => (problem?.field === field ? problem.message : null);
@@ -223,14 +230,18 @@ export default function SignUpPage() {
                 name="country"
                 className="w-full"
                 value={country}
-                onChange={(e) => setCountry(e.target.value as Country)}
+                onChange={(e) => setCountry(e.target.value)}
                 aria-describedby="country-hint"
               >
-                <NativeSelectOption value="US">United States</NativeSelectOption>
-                <NativeSelectOption value="KE">Kenya</NativeSelectOption>
+                {countries.map((c) => (
+                  <NativeSelectOption key={c.code} value={c.code}>
+                    {c.name}
+                  </NativeSelectOption>
+                ))}
               </NativeSelect>
               <p id="country-hint" className="text-sm text-muted-foreground">
-                {CURRENCY_HINT[country]}
+                Prices will show in {mounted ? currencyLabel(country) : "your country's currency"}. You can choose another
+                billing currency later in Settings.
               </p>
             </div>
             <div id="logo-section" tabIndex={-1} className="rounded-md outline-none">

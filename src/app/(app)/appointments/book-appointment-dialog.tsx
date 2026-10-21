@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { formatFee } from "@/lib/format";
+import { currencyDigits, moneyInputValue } from "@/lib/countries";
 import { cn } from "@/lib/utils";
 import { createAppointment, type AppointmentSummary, type BookingInput } from "./actions";
 import { PatientPicker, type PatientChoice } from "./patient-picker";
@@ -22,11 +22,12 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   date: string; // YYYY-MM-DD
   clinicianName: string;
+  currency: string;
   careTypes: { typeOfCare: string; feeMinor: number }[];
   onBooked: (appointment: AppointmentSummary) => void;
 };
 
-export function BookAppointmentDialog({ open, onOpenChange, date, clinicianName, careTypes, onBooked }: Props) {
+export function BookAppointmentDialog({ open, onOpenChange, date, clinicianName, currency, careTypes, onBooked }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
@@ -40,6 +41,7 @@ export function BookAppointmentDialog({ open, onOpenChange, date, clinicianName,
             key={date}
             date={date}
             clinicianName={clinicianName}
+            currency={currency}
             careTypes={careTypes}
             onBooked={onBooked}
             onCancel={() => onOpenChange(false)}
@@ -53,6 +55,7 @@ export function BookAppointmentDialog({ open, onOpenChange, date, clinicianName,
 function BookingForm({
   date,
   clinicianName,
+  currency,
   careTypes,
   onBooked,
   onCancel,
@@ -72,7 +75,7 @@ function BookingForm({
     setTypeOfCare(type);
     // Pre-fill the fee charged last time for this type of care.
     const known = careTypes.find((c) => c.typeOfCare === type);
-    if (known && !fee) setFee(formatFee(known.feeMinor).replace(/,/g, ""));
+    if (known && !fee) setFee(moneyInputValue(known.feeMinor, currency));
   }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -170,9 +173,9 @@ function BookingForm({
       </div>
 
       <FormField
-        label="Fee"
+        label={`Fee (${currency})`}
         name="fee"
-        inputMode="decimal"
+        inputMode={currencyDigits(currency) ? "decimal" : "numeric"}
         placeholder="e.g. 2500"
         value={fee}
         onChange={(e) => setFee(e.target.value)}

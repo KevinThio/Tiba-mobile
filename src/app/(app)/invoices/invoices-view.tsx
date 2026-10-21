@@ -9,16 +9,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { formatDayShort, formatFee, formatTime } from "@/lib/format";
+import { formatMoney } from "@/lib/countries";
+import { formatDayShort, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { createInvoice, emailInvoice, listInvoices, listVisitsForInvoicing, type InvoiceSummary, type InvoiceableVisit } from "./actions";
 import { InvoiceEmailDialog } from "./invoice-email-dialog";
-import { PERIOD_LABELS, type Period } from "./periods";
+import { type Due, PERIOD_LABELS, type Period } from "./periods";
 
 const label = (n: number) => String(n).padStart(4, "0");
 const pdfUrl = (id: string) => `/api/invoices/${id}/pdf`;
 
-export function InvoicesView() {
+/** `country` is the practice's (for how amounts are written); each visit and invoice has its own currency. */
+export function InvoicesView({ country }: { country: string }) {
+  const money = (minor: number, currency?: string) => formatMoney(minor, country, currency);
   const [period, setPeriod] = useState<Period>("1m");
   const [visits, setVisits] = useState<InvoiceableVisit[] | null>(null);
   const [invoices, setInvoices] = useState<InvoiceSummary[] | null>(null);
@@ -57,9 +60,13 @@ export function InvoicesView() {
   const chosen = useMemo(() => (visits ?? []).filter((v) => selected.has(v.id)), [visits, selected]);
   // An invoice is for one patient: the first ticked visit decides who.
   const patient = chosen[0] ? { id: chosen[0].patientId, name: chosen[0].patientName } : null;
+  // …and its currency: visits booked in another currency go on their own invoice.
+  const currency = chosen[0]?.currency;
   const totalMinor = chosen.reduce((sum, v) => sum + v.feeMinor, 0);
   const moreForPatient = patient
-    ? (visits ?? []).filter((v) => v.patientId === patient.id && v.invoiceNumber === null && !selected.has(v.id))
+    ? (visits ?? []).filter(
+        (v) => v.patientId === patient.id && v.currency === currency && v.signed && v.invoiceNumber === null && !selected.has(v.id),
+      )
     : [];
 
   function changePeriod(next: Period) {
@@ -77,10 +84,11 @@ export function InvoicesView() {
     });
   }
 
-  async function create(email: string) {
+  async function create(email: string, due: Due) {
     const result = await createInvoice({
       appointmentIds: [...selected],
       email,
+      due,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
     if (!result.ok) return result.message;
@@ -106,7 +114,7 @@ export function InvoicesView() {
 
   return (
     <div className="grid grid-cols-1 gap-8 pb-24 md:pb-0">
-      <PageHeader title="Invoices" description="Tick the visits to bill, then create the invoice. It can be emailed straight away." />
+      <PageHeader title="Invoices" description="Tick signed visits to bill, then create the invoice. It can be emailed straight away." />
 
       <section aria-labelledby="visits-heading" className="grid grid-cols-1 gap-4">
         <h2 id="visits-heading" className="sr-only">
@@ -154,7 +162,9 @@ export function InvoicesView() {
             {shown.map((v) => {
               const invoiced = v.invoiceNumber !== null;
               const otherPatient = patient !== null && v.patientId !== patient.id;
-              const disabled = invoiced || otherPatient;
+              const unsigned = !v.signed && !invoiced;
+              const otherCurrency = !otherPatient && currency !== undefined && v.currency !== currency;
+              const disabled = invoiced || otherPatient || unsigned || otherCurrency;
               const start = new Date(v.startsAt);
               const checkboxId = `visit-${v.id}`;
               return (
@@ -172,7 +182,7 @@ export function InvoicesView() {
                       checked={selected.has(v.id)}
                       disabled={disabled}
                       onCheckedChange={(on) => toggle(v, on)}
-                      aria-describedby={otherPatient ? `${checkboxId}-why` : undefined}
+                      aria-describedby={otherPatient || unsigned || otherCurrency ? `${checkboxId}-why` : undefined}
                     />
                     <div className="w-20 shrink-0 text-sm sm:w-28">
                       <p className="font-medium">{formatDayShort(start)}</p>
@@ -187,15 +197,24 @@ export function InvoicesView() {
                       </p>
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {invoiced && <Badge variant="secondary">On invoice {label(v.invoiceNumber!)}</Badge>}
-                        {v.signed ? <Badge variant="success">Note signed</Badge> : <Badge variant="accent">Note to write</Badge>}
+                        {otherCurrency && <Badge variant="neutral">Booked in {v.currency}</Badge>}
+                        {v.signed ? (
+                          <Badge variant="success">Note signed</Badge>
+                        ) : (
+                          <Badge variant="warning">Sign the note to invoice</Badge>
+                        )}
                       </div>
-                      {otherPatient && (
+                      {(otherPatient || unsigned || otherCurrency) && (
                         <p id={`${checkboxId}-why`} className="sr-only">
-                          An invoice is for one patient at a time.
+                          {unsigned
+                            ? "Only signed visits can be invoiced."
+                            : otherCurrency
+                              ? "This visit was booked in another currency, so it goes on its own invoice."
+                              : "An invoice is for one patient at a time."}
                         </p>
                       )}
                     </div>
-                    <p className="shrink-0 font-medium tabular-nums">{formatFee(v.feeMinor)}</p>
+                    <p className="shrink-0 font-medium tabular-nums">{money(v.feeMinor, v.currency)}</p>
                   </label>
                 </li>
               );
@@ -213,7 +232,7 @@ export function InvoicesView() {
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{patient.name}</p>
               <p className="text-sm text-muted-foreground">
-                {chosen.length} visit{chosen.length === 1 ? "" : "s"} · <span className="tabular-nums">{formatFee(totalMinor)}</span>
+                {chosen.length} visit{chosen.length === 1 ? "" : "s"} · <span className="tabular-nums">{money(totalMinor, currency)}</span>
                 {moreForPatient.length > 0 && (
                   <>
                     {" · "}
@@ -254,7 +273,10 @@ export function InvoicesView() {
                   <p className="truncate font-medium">{inv.patientName}</p>
                   <p className="text-sm text-muted-foreground">
                     {formatDayShort(new Date(inv.createdAt))} · {inv.visits} visit{inv.visits === 1 ? "" : "s"} ·{" "}
-                    <span className="tabular-nums">{formatFee(inv.totalMinor)}</span>
+                    <span className="tabular-nums">{money(inv.totalMinor, inv.currency)}</span>
+                    {inv.dueDate && inv.dueDate > inv.createdAt.slice(0, 10) && (
+                      <> · Due {formatDayShort(new Date(`${inv.dueDate}T12:00:00`))}</>
+                    )}
                   </p>
                   <p className="truncate text-sm text-muted-foreground">
                     {inv.sentTo ? `Emailed to ${inv.sentTo} on ${formatDayShort(new Date(inv.sentAt!))}` : "Not emailed yet"}
@@ -281,7 +303,8 @@ export function InvoicesView() {
         onOpenChange={setCreating}
         title="Create invoice"
         description="Check the details, then create the invoice."
-        summary={patient ? { patientName: patient.name, visits: chosen.length, totalMinor } : undefined}
+        summary={patient ? { patientName: patient.name, visits: chosen.length, total: money(totalMinor, currency) } : undefined}
+        withDue
         defaultEmail={chosen[0]?.invoiceEmail ?? ""}
         emailRequired={false}
         submitLabel={(hasEmail) => (hasEmail ? "Create and email" : "Create invoice")}

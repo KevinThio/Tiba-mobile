@@ -3,17 +3,12 @@ import { PracticeDetailsDialog } from "@/components/practice-details-dialog";
 import { PracticeMark } from "@/components/practice-mark";
 import { SignOutButton } from "@/components/sign-out-button";
 import { requireAdmin } from "@/lib/auth";
-import { practiceLogoUrlFor } from "@/lib/practice";
-
-const COUNTRY = {
-  US: { name: "United States", currency: "Invoices, billing and agreements show US dollars ($)." },
-  KE: { name: "Kenya", currency: "Invoices, billing and agreements show Kenyan shillings (KSh)." },
-} as const;
+import { practiceBilling, practiceLogoUrlFor } from "@/lib/practice";
+import { CountryForm } from "./country-form";
 
 export default async function AdminSettingsPage() {
-  const { name, practiceName, practiceId, country } = await requireAdmin();
-  const logoUrl = await practiceLogoUrlFor(practiceId);
-  const place = COUNTRY[country as keyof typeof COUNTRY] ?? COUNTRY.US;
+  const { name, practiceName, practiceId } = await requireAdmin();
+  const [logoUrl, billing] = await Promise.all([practiceLogoUrlFor(practiceId), practiceBilling(practiceId)]);
 
   return (
     <div className="grid max-w-3xl grid-cols-1 gap-6">
@@ -33,17 +28,13 @@ export default async function AdminSettingsPage() {
           </div>
           <PracticeDetailsDialog practiceName={practiceName} logoUrl={logoUrl} triggerClassName="border-border-action" />
         </div>
-        <dl className="grid grid-cols-1 gap-4 border-t border-border-subtle pt-4 sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-4 border-t border-border-subtle pt-4">
           <div>
             <dt className="text-small text-muted-foreground">Your name</dt>
             <dd className="font-semibold">{name}</dd>
           </div>
-          <div>
-            <dt className="text-small text-muted-foreground">Country</dt>
-            <dd className="font-semibold">{place.name}</dd>
-            <dd className="text-small text-muted-foreground">{place.currency}</dd>
-          </div>
         </dl>
+        <CountryForm country={billing.country} currency={billing.chosen} />
       </section>
     </div>
   );

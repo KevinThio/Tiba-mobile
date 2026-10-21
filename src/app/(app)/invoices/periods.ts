@@ -9,3 +9,13 @@ export const PERIOD_LABELS: Record<Period, string> = {
   "2m": "Last 2 months",
   "6m": "Last 6 months",
 };
+
+// Spec v2 "Payment due" on a new invoice: key -> label and days after the invoice date.
+export const DUE_OPTIONS = {
+  receipt: { label: "Due on receipt", days: 0 },
+  "14": { label: "Due in 14 days", days: 14 },
+  "30": { label: "Due in 30 days", days: 30 },
+} as const;
+export type Due = keyof typeof DUE_OPTIONS;
+// In order: number-like keys would otherwise sort first ("14", "30", "receipt").
+export const DUE_ORDER: Due[] = ["receipt", "14", "30"];

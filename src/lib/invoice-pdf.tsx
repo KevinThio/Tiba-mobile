@@ -3,7 +3,7 @@ import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appointments, clinicians, invoiceItems, invoices, patients, practices } from "@/db/schema";
-import { formatFee } from "@/lib/format";
+import { formatMoneyForPdf } from "@/lib/countries";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
 
 // Invoice PDF with the practice letterhead (same content as NoteLetterhead on screen).
@@ -48,6 +48,9 @@ export async function loadInvoiceForPdf(invoiceId: string, clinicianId: string) 
       number: invoices.number,
       createdAt: invoices.createdAt,
       totalMinor: invoices.totalMinor,
+      currency: invoices.currency,
+      dueDate: invoices.dueDate,
+      country: practices.country,
       practiceName: clinicians.practiceName,
       clinicianName: clinicians.name,
       clinicianEmail: clinicians.email,
@@ -76,7 +79,13 @@ export async function loadInvoiceForPdf(invoiceId: string, clinicianId: string) 
     .innerJoin(appointments, eq(appointments.id, invoiceItems.appointmentId))
     .where(eq(invoiceItems.invoiceId, invoiceId))
     .orderBy(asc(appointments.startsAt));
-  return { ...head, items };
+  // "On receipt" when due the day it was made, otherwise the date ("30 Nov 2026").
+  const made = head.createdAt.toLocaleDateString("en-CA", { timeZone: head.timeZone ?? "UTC" });
+  const dueLabel =
+    !head.dueDate || head.dueDate <= made
+      ? "On receipt"
+      : new Date(`${head.dueDate}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  return { ...head, items, dueLabel };
 }
 
 type InvoiceData = NonNullable<Awaited<ReturnType<typeof loadInvoiceForPdf>>>;
@@ -104,6 +113,7 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
             <Text style={s.title}>INVOICE</Text>
             <Text style={s.meta}>No. {invoiceNumberLabel(data.number)}</Text>
             <Text style={s.meta}>{day(data.createdAt)}</Text>
+            <Text style={s.meta}>Payment due: {data.dueLabel}</Text>
           </View>
         </View>
 
@@ -130,7 +140,7 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
               <Text style={[s.cell, s.cTimes]}>
                 {item.timeIn ? time(item.timeIn) : time(item.startsAt)} – {item.timeOut ? time(item.timeOut) : "–"}
               </Text>
-              <Text style={[s.cell, s.cAmount]}>{formatFee(item.feeMinor)}</Text>
+              <Text style={[s.cell, s.cAmount]}>{formatMoneyForPdf(item.feeMinor, data.country, data.currency)}</Text>
             </View>
           ))}
         </View>
@@ -139,7 +149,7 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
           <Text style={s.muted}>
             Total ({data.items.length} visit{data.items.length === 1 ? "" : "s"})
           </Text>
-          <Text style={s.totalValue}>{formatFee(data.totalMinor)}</Text>
+          <Text style={s.totalValue}>{formatMoneyForPdf(data.totalMinor, data.country, data.currency)}</Text>
         </View>
 
         <Text style={s.footer} fixed>

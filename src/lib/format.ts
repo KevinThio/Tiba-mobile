@@ -1,19 +1,5 @@
 // Display helpers. Dates and times are shown in the viewer's local time zone.
-// The currency isn't decided yet, so fees are shown as plain amounts.
-
-const feeFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/** 150000 -> "1,500.00" */
-export function formatFee(minor: number) {
-  return feeFormat.format(minor / 100);
-}
-
-/** "1,500.5" -> 150050. Returns null if it isn't a sensible amount. */
-export function parseFeeToMinor(input: string): number | null {
-  const cleaned = input.replace(/[\s,]/g, "");
-  if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
-  return Math.round(Number(cleaned) * 100);
-}
+// Money is formatted in src/lib/countries.ts (the practice's country sets the currency).
 
 /** Age in whole years from a "YYYY-MM-DD" date of birth. */
 export function ageFrom(dateOfBirth: string, today = new Date()) {

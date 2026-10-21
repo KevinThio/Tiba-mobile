@@ -3,6 +3,7 @@ import { APIError } from "better-auth/api";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { clinicians, practices } from "@/db/schema";
+import { isCountryCode } from "@/lib/countries";
 import { renderEmail, sendEmail } from "@/lib/email";
 import { normalisePracticeName } from "@/lib/practice-name";
 
@@ -32,7 +33,7 @@ export async function placeNewAccount(account: NewAccount) {
         message: "A practice with that name is already on Tiba.",
       });
     }
-    const country = account.country === "KE" ? "KE" : "US";
+    const country = isCountryCode(account.country) ? account.country : "US";
     // If creating the account fails after this, the empty practice is left behind;
     // Better Auth checks the email before running this hook, so that is rare.
     const [practice] = await db.insert(practices).values({ name, nameKey, country }).returning();

@@ -127,6 +127,20 @@
       "when": 1792573173061,
       "tag": "0017_patient_merge",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792574815664,
+      "tag": "0018_all_countries",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792585346511,
+      "tag": "0019_billing_currency",
+      "breakpoints": true
     }
   ]
 }

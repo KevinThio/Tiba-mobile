@@ -30,15 +30,18 @@ export const practices = pgTable(
     // The name lower-cased with punctuation and spacing collapsed (normalisePracticeName),
     // so "Reyes Therapy" and "REYES  THERAPY." are the same practice.
     nameKey: text("name_key").notNull().unique(),
-    // "US" (US dollars) or "KE" (Kenyan shillings). Sets the currency.
-    country: text("country", { enum: ["US", "KE"] }).notNull().default("US"),
+    // ISO 3166-1 country code (src/lib/countries.ts). Sets the currency for fees and invoices.
+    country: text("country").notNull().default("US"),
+    // ISO 4217 code the practice bills in, chosen by the admin. Null means the country's
+    // standard currency (currencyFor(country) in src/lib/countries.ts).
+    currency: text("currency"),
     // Letterhead logo: a PNG/JPEG data URL, resized in the browser and checked by
     // parseLogoDataUrl. Served by /api/practice-logo, never embedded in pages.
     logo: text("logo"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [check("practices_country_check", sql`${t.country} in ('US', 'KE')`)],
+  (t) => [check("practices_country_check", sql`${t.country} ~ '^[A-Z]{2}$'`)],
 );
 
 // ---------------------------------------------------------------------------
@@ -58,7 +61,7 @@ export const clinicians = pgTable("clinicians", {
   // Copies of the practice's name and country, so they ride along in the session.
   // updatePractice keeps them in step with the practices row.
   practiceName: text("practice_name").notNull(),
-  country: text("country", { enum: ["US", "KE"] }).notNull().default("US"),
+  country: text("country").notNull().default("US"),
   // Spec v2 account type: "clinician" writes notes; "admin" runs the practice and never writes notes.
   // Set at sign-up only; a trigger (drizzle/0005) blocks any change.
   role: text("role", { enum: ["clinician", "admin"] }).notNull().default("clinician"),
@@ -80,7 +83,7 @@ export const clinicians = pgTable("clinicians", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   check("clinicians_role_check", sql`${t.role} in ('clinician', 'admin')`),
-  check("clinicians_country_check", sql`${t.country} in ('US', 'KE')`),
+  check("clinicians_country_check", sql`${t.country} ~ '^[A-Z]{2}$'`),
   check("clinicians_status_check", sql`${t.status} in ('pending', 'active', 'deactivated')`),
   index("clinicians_practice_idx").on(t.practiceId),
 ]);
@@ -247,8 +250,11 @@ export const appointments = pgTable(
     // Not in the spec; the calendar needs an end time to draw the appointment.
     durationMinutes: integer("duration_minutes").notNull().default(60),
     typeOfCare: text("type_of_care").notNull(),
-    // Money is stored in minor units (cents) to avoid floating-point errors.
+    // Money is stored in minor units of `currency` (cents, fils…) to avoid floating-point errors.
     feeMinor: integer("fee_minor").notNull(),
+    // The currency the fee was booked in (the practice's billing currency at the time), so a
+    // later change of currency never changes what a visit cost.
+    currency: text("currency").notNull().default("USD"),
     // When the visit actually started and ended, recorded by the clinician. Shown on the
     // signed note; locked once the note is signed (trigger in drizzle/0003).
     timeIn: timestamp("time_in", { withTimezone: true }),
@@ -354,6 +360,11 @@ export const invoices = pgTable(
       .notNull()
       .references(() => patients.id, { onDelete: "restrict" }),
     totalMinor: integer("total_minor").notNull(),
+    // ISO 4217 code, from the practice's country when the invoice was made. Kept on the invoice
+    // so a later country change never changes an invoice already sent.
+    currency: text("currency").notNull().default("USD"),
+    // Spec v2 "Payment due": the invoice date (due on receipt), or 14 or 30 days later.
+    dueDate: date("due_date"),
     // Set when the invoice PDF was emailed.
     sentTo: text("sent_to"),
     sentAt: timestamp("sent_at", { withTimezone: true }),
