@@ -82,6 +82,9 @@ export const clinicians = pgTable("clinicians", {
   // Spec v2 discipline (src/lib/disciplines.ts): decides which notes the clinician can write.
   // Null until they set it in Settings; then the note editor offers only their notes.
   discipline: text("discipline"),
+  // The location the clinician is based at (spec v2), set by the admin on the location profile.
+  // One location per clinician; removing a location moves its clinicians to one the admin picks.
+  locationId: uuid("location_id").references((): AnyPgColumn => locations.id, { onDelete: "set null" }),
   // Default fee for a visit, in minor units of visitFeeCurrency (Settings → Invoicing). Pre-fills
   // the booking form when there's no earlier fee for that type of care.
   visitFeeMinor: integer("visit_fee_minor"),
@@ -105,6 +108,7 @@ export const clinicians = pgTable("clinicians", {
   check("clinicians_discipline_check", sql`${t.discipline} is null or ${t.discipline} in ('RN', 'LPN', 'PT', 'OT', 'SLP', 'HHA', 'MH')`),
   check("clinicians_status_check", sql`${t.status} in ('pending', 'active', 'deactivated')`),
   index("clinicians_practice_idx").on(t.practiceId),
+  index("clinicians_location_idx").on(t.locationId),
 ]);
 
 export const sessions = pgTable(

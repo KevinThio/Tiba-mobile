@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
-import { clinicians, contracts } from "@/db/schema";
+import { clinicians, contracts, locations } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { disciplineLabel, isDiscipline } from "@/lib/disciplines";
 import { listFiles, toSummary } from "@/lib/files";
@@ -28,8 +28,18 @@ export default async function AdminClinicianPage({ params }: PageProps<"/admin/c
   const admin = await requireAdmin();
   const { id } = await params;
   const [c] = await db
-    .select({ id: clinicians.id, name: clinicians.name, email: clinicians.email, status: clinicians.status, discipline: clinicians.discipline, createdAt: clinicians.createdAt })
+    .select({
+      id: clinicians.id,
+      name: clinicians.name,
+      email: clinicians.email,
+      status: clinicians.status,
+      discipline: clinicians.discipline,
+      createdAt: clinicians.createdAt,
+      locationId: clinicians.locationId,
+      locationName: locations.name,
+    })
     .from(clinicians)
+    .leftJoin(locations, eq(locations.id, clinicians.locationId))
     .where(and(eq(clinicians.id, id), eq(clinicians.practiceId, admin.practiceId), eq(clinicians.role, "clinician")));
   if (!c) notFound();
 
@@ -71,6 +81,15 @@ export default async function AdminClinicianPage({ params }: PageProps<"/admin/c
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Detail label="Role">{role}</Detail>
             <Detail label="Email">{c.email}</Detail>
+            <Detail label="Location">
+              {c.locationId ? (
+                <Link href={`/admin/locations/${c.locationId}`} className="underline-offset-2 hover:underline">
+                  {c.locationName}
+                </Link>
+              ) : (
+                <span className="text-muted-foreground">Not based at a location yet. Add them from a location&apos;s page.</span>
+              )}
+            </Detail>
             <Detail label="Joined">{DATE.format(c.createdAt)}</Detail>
             <Detail label="Account">
               {c.status === "active" ? "Active · They can sign in and write notes." : c.status === "pending" ? "Waiting for you to verify" : "Deactivated · Their notes are kept."}

@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { MapPin, Plus } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
@@ -19,6 +19,7 @@ export default async function AdminLocationsPage() {
       facility: locations.facility,
       address: locations.address,
       services: locations.services,
+      clinicianCount: sql<number>`(select count(*)::int from clinicians c where c.location_id = locations.id)`,
     })
     .from(locations)
     .where(eq(locations.practiceId, admin.practiceId))
@@ -61,7 +62,9 @@ export default async function AdminLocationsPage() {
                   {l.name}
                 </Link>
                 <p className="truncate text-small text-muted-foreground">{l.address ?? "No address · online"}</p>
-                <p className="truncate text-caption text-subtle-foreground">{l.services.join(" · ")}</p>
+                <p className="truncate text-caption text-subtle-foreground">
+                  {l.clinicianCount === 1 ? "1 clinician" : `${l.clinicianCount} clinicians`} · {l.services.join(" · ")}
+                </p>
               </div>
               <Badge variant="neutral">{l.facility}</Badge>
             </li>

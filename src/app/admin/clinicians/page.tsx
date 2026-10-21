@@ -6,8 +6,9 @@ import { PageHeader } from "@/components/page-header";
 import { initialsOf } from "@/components/practice-mark";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/db";
-import { clinicians } from "@/db/schema";
+import { clinicians, locations } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import { disciplineLabel, isDiscipline } from "@/lib/disciplines";
 import { ClinicianStatusActions } from "./clinician-status-actions";
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -31,8 +32,11 @@ export default async function AdminCliniciansPage() {
       email: clinicians.email,
       status: clinicians.status,
       createdAt: clinicians.createdAt,
+      discipline: clinicians.discipline,
+      locationName: locations.name,
     })
     .from(clinicians)
+    .leftJoin(locations, eq(locations.id, clinicians.locationId))
     .where(and(eq(clinicians.practiceId, admin.practiceId), eq(clinicians.role, "clinician")))
     .orderBy(asc(clinicians.name));
 
@@ -75,7 +79,11 @@ export default async function AdminCliniciansPage() {
         ) : (
           <ul className="grid grid-cols-1 rounded-lg border border-border-subtle bg-card shadow-sm">
             {team.map((c) => (
-              <ClinicianRow key={c.id} clinician={c} meta={`${c.email} · joined ${dateFormat.format(c.createdAt)}`} />
+              <ClinicianRow
+                key={c.id}
+                clinician={c}
+                meta={`${isDiscipline(c.discipline) ? disciplineLabel(c.discipline) : "Discipline not set"} · ${c.locationName ?? "No location"} · ${c.email}`}
+              />
             ))}
           </ul>
         )}
