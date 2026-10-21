@@ -5,6 +5,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -264,7 +265,16 @@ export const notes = pgTable(
       .notNull()
       .unique()
       .references(() => appointments.id, { onDelete: "restrict" }),
+    // The written-up note Tiba makes from the sections when it is signed.
     body: text("body").notNull().default(""),
+    // Spec v2 note types: "progress" (visit note), "evaluation" (initial evaluation, sets
+    // goals), "service_plan" (aide service plan) and "oasis" (OASIS assessment).
+    kind: text("kind", { enum: ["progress", "evaluation", "service_plan", "oasis"] }).notNull().default("progress"),
+    // Template key from src/lib/note-templates.ts, e.g. "pt", "rn", "hha", "individual".
+    care: text("care").notNull().default("individual"),
+    // Section answers, keyed by field id (see src/lib/note-templates.ts).
+    fields: jsonb("fields").$type<Record<string, unknown>>().notNull().default({}),
+    dxCode: text("dx_code").references(() => diagnosisCodes.code),
     // Signatures are PNG data URLs captured with signature_pad.
     clinicianSignature: text("clinician_signature"),
     patientSignature: text("patient_signature"),
@@ -275,6 +285,7 @@ export const notes = pgTable(
   (t) => [
     // A note can only be marked signed if the clinician actually signed it.
     check("notes_signed_requires_clinician_signature", sql`${t.signedAt} is null or ${t.clinicianSignature} is not null`),
+    check("notes_kind_check", sql`${t.kind} in ('progress', 'evaluation', 'service_plan', 'oasis')`),
   ],
 );
 
