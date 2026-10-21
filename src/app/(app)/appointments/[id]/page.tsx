@@ -1,17 +1,16 @@
-import { and, eq, exists, isNotNull } from "drizzle-orm";
+import { and, asc, eq, exists, isNotNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
 import { db } from "@/db";
-import { appointments, clinicians, diagnosisCodes, invoiceItems, notes, patients, practices } from "@/db/schema";
+import { appointments, clinicians, diagnosisCodes, invoiceItems, noteAddenda, notes, patients, practices } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { summarise } from "@/lib/note-summary";
 import {
   CARE_LABEL,
   careFromTypeOfCare,
   getTemplate,
-  isDiscipline,
-  KIND_LABEL,
+  noteTitle,
   kindFromTypeOfCare,
   kindsFor,
   type Care,
@@ -45,6 +44,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       practiceUpdatedAt: practices.updatedAt,
       timeIn: appointments.timeIn,
       timeOut: appointments.timeOut,
+      noteId: notes.id,
       noteKind: notes.kind,
       noteCare: notes.care,
       noteFields: notes.fields,
@@ -68,7 +68,12 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
 
   const care = (visit.noteCare as Care | null) ?? careFromTypeOfCare(visit.typeOfCare);
 
-  if (visit.noteSignedAt && visit.clinicianSignature) {
+  if (visit.noteSignedAt && visit.clinicianSignature && visit.noteId) {
+    const addenda = await db
+      .select({ id: noteAddenda.id, body: noteAddenda.body, createdAt: noteAddenda.createdAt })
+      .from(noteAddenda)
+      .where(eq(noteAddenda.noteId, visit.noteId))
+      .orderBy(asc(noteAddenda.createdAt));
     const template = getTemplate((visit.noteKind as NoteKind | null) ?? "progress", care);
     const goals = (await goalsFromEvaluation(visit.patientId, care, clinician.practiceId))?.goals ?? [];
     const end = visit.timeOut ?? new Date(visit.startsAt.getTime() + visit.durationMinutes * 60_000);
@@ -82,7 +87,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
         from={(visit.timeIn ?? visit.startsAt).toISOString()}
         to={end.toISOString()}
         timesRecorded={Boolean(visit.timeIn && visit.timeOut)}
-        title={isDiscipline(care) ? KIND_LABEL[template.kind] : "Visit note"}
+        title={noteTitle(template.kind, care)}
         careLabel={CARE_LABEL[care]}
         dx={visit.dxCode ? `${visit.dxCode} ${visit.dxDescription ?? ""}`.trim() : null}
         body={visit.body ?? ""}
@@ -91,6 +96,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
         clinicianSignature={visit.clinicianSignature}
         patientSignature={visit.patientSignature}
         invoiced={Boolean(visit.invoiced)}
+        addenda={addenda.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() }))}
       />
     );
   }

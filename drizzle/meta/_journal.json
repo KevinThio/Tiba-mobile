@@ -99,6 +99,13 @@
       "when": 1792558842930,
       "tag": "0013_structured_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792569202385,
+      "tag": "0014_lock_note_addenda",
+      "breakpoints": true
     }
   ]
 }

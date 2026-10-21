@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { SummaryGroup } from "@/lib/note-summary";
+import { Addenda, DownloadNotePdf } from "./addenda";
 import { LocalTime } from "./local-time";
 
 type Props = {
@@ -26,6 +27,7 @@ type Props = {
   clinicianSignature: string;
   patientSignature: string | null;
   invoiced: boolean;
+  addenda: { id: string; body: string; createdAt: string }[];
 };
 
 /**
@@ -46,11 +48,14 @@ export function SignedNote(p: Props) {
         }
         title={p.patientName}
         actions={
-          !p.invoiced && (
-            <Button variant="outline" nativeButton={false} render={<Link href="/invoices" />}>
-              <ReceiptText aria-hidden /> Create invoice
-            </Button>
-          )
+          <div className="flex flex-wrap gap-2">
+            <DownloadNotePdf appointmentId={p.appointmentId} />
+            {!p.invoiced && (
+              <Button variant="outline" nativeButton={false} render={<Link href="/invoices" />}>
+                <ReceiptText aria-hidden /> Create invoice
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -101,6 +106,8 @@ export function SignedNote(p: Props) {
           <SignatureTile label="Patient" name={p.patientName} image={p.patientSignature} signedAt={p.signedAt} />
         </div>
       </article>
+
+      <Addenda appointmentId={p.appointmentId} clinicianName={p.clinicianName} addenda={p.addenda} />
 
       <details className="group w-full max-w-3xl rounded-lg border border-border-subtle bg-card shadow-xs">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-5 py-4 font-semibold outline-none focus-visible:ring-3 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">

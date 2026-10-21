@@ -59,6 +59,9 @@ export const KIND_LABEL: Record<NoteKind, string> = {
   service_plan: "Aide service plan",
 };
 
+/** The heading on a finished note: "Initial evaluation", "OASIS assessment"… or "Visit note". */
+export const noteTitle = (kind: NoteKind, care: Care) => (isDiscipline(care) ? KIND_LABEL[kind] : "Visit note");
+
 export const THERAPY_CARES: Care[] = ["individual", "couples", "assessment", "followup"];
 export const DISCIPLINE_CARES: Care[] = ["pt", "ot", "st", "rn", "hha"];
 export const isDiscipline = (care: Care) => DISCIPLINE_CARES.includes(care);
