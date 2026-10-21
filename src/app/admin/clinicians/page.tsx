@@ -1,5 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import { Stethoscope } from "lucide-react";
+import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { initialsOf } from "@/components/practice-mark";
@@ -100,7 +101,12 @@ function ClinicianRow({
         {initialsOf(clinician.name)}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">{clinician.name}</p>
+        <Link
+          href={`/admin/clinicians/${clinician.id}`}
+          className="block truncate rounded-xs font-semibold outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring"
+        >
+          {clinician.name}
+        </Link>
         <p className="truncate text-small text-muted-foreground">{meta}</p>
       </div>
       <Badge variant={badge.variant}>{badge.label}</Badge>

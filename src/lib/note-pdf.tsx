@@ -4,6 +4,7 @@ import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { appointments, clinicians, diagnosisCodes, noteAddenda, notes, noteVersions, patients, practices } from "@/db/schema";
 import { CARE_LABEL, noteTitle, type Care } from "@/lib/note-templates";
+import { PDF_FONT } from "@/lib/pdf-fonts";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
 import { isValidTimeZone } from "@/lib/reminders";
 import { isSignatureImage } from "@/lib/signature";
@@ -19,17 +20,17 @@ const BORDER = "#DFE0E5";
 const AMBER = "#F3DCA3";
 
 const s = StyleSheet.create({
-  page: { paddingTop: 48, paddingHorizontal: 48, paddingBottom: 64, fontFamily: "Helvetica", fontSize: 10.5, color: INK, lineHeight: 1.45 },
+  page: { paddingTop: 48, paddingHorizontal: 48, paddingBottom: 64, fontFamily: PDF_FONT, fontSize: 10.5, color: INK, lineHeight: 1.45 },
   head: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: BORDER },
   logo: { height: 52, maxWidth: 110, objectFit: "contain" },
-  practice: { fontFamily: "Helvetica-Bold", fontSize: 16, color: FERN, lineHeight: 1.2, marginBottom: 2 },
+  practice: { fontFamily: PDF_FONT, fontWeight: "bold", fontSize: 16, color: FERN, lineHeight: 1.2, marginBottom: 2 },
   muted: { color: MUTED },
-  title: { fontFamily: "Helvetica-Bold", fontSize: 18, color: FERN, marginTop: 22, lineHeight: 1.2 },
+  title: { fontFamily: PDF_FONT, fontWeight: "bold", fontSize: 18, color: FERN, marginTop: 22, lineHeight: 1.2 },
   subtitle: { color: MUTED, marginTop: 4 },
   details: { flexDirection: "row", flexWrap: "wrap", marginTop: 16, padding: 12, backgroundColor: FERN_PALE, borderRadius: 6 },
   detail: { width: "33%", paddingVertical: 4, paddingRight: 8 },
   label: { fontSize: 7.5, color: MUTED, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 },
-  bold: { fontFamily: "Helvetica-Bold" },
+  bold: { fontFamily: PDF_FONT, fontWeight: "bold" },
   body: { marginTop: 18 },
   para: { marginBottom: 9 },
   sigs: { flexDirection: "row", gap: 16, marginTop: 18 },

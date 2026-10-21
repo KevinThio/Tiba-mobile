@@ -10,7 +10,12 @@ const DATA_URL = /^data:(image\/png|image\/jpeg);base64,([A-Za-z0-9+/]+={0,2})$/
 
 /** Returns the decoded image, or null if it isn't a PNG/JPEG data URL of an allowed size. */
 export function parseLogoDataUrl(dataUrl: string): { mime: "image/png" | "image/jpeg"; bytes: Buffer } | null {
-  if (dataUrl.length > LOGO_MAX_DATA_URL_LENGTH) return null;
+  return parseImageDataUrl(dataUrl, LOGO_MAX_DATA_URL_LENGTH);
+}
+
+/** A PNG or JPEG data URL up to maxLength characters, checked against the file's real bytes. */
+export function parseImageDataUrl(dataUrl: string, maxLength: number): { mime: "image/png" | "image/jpeg"; bytes: Buffer } | null {
+  if (dataUrl.length > maxLength) return null;
   const match = DATA_URL.exec(dataUrl);
   if (!match) return null;
   const mime = match[1] as "image/png" | "image/jpeg";

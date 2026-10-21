@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { clinicians, sessions } from "@/db/schema";
+import { clinicianProfiles, clinicians, sessions } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { notifyClinicianActivated } from "@/lib/practice-join";
 
@@ -50,5 +50,39 @@ export async function setClinicianStatus(
   }
 
   revalidatePath("/admin", "layout");
+  return { ok: true };
+}
+
+const contactInput = z.object({
+  clinicianId: z.string().min(1),
+  name: z.string().trim().max(120),
+  relationship: z.string().trim().max(60),
+  phone: z.string().trim().max(40),
+});
+
+/** Clinician profile → Emergency contact (kept by the admin). */
+export async function saveEmergencyContact(values: z.input<typeof contactInput>): Promise<{ ok: true } | { ok: false; message: string }> {
+  const admin = await requireAdmin();
+  const parsed = contactInput.safeParse(values);
+  if (!parsed.success) return { ok: false, message: "Please check the contact details." };
+  const v = parsed.data;
+  if ((v.name || v.relationship) && !v.phone) return { ok: false, message: "Add a phone number for the emergency contact." };
+  if (v.phone && !v.name) return { ok: false, message: "Add the emergency contact's name." };
+  const [clinician] = await db
+    .select({ id: clinicians.id })
+    .from(clinicians)
+    .where(and(eq(clinicians.id, v.clinicianId), eq(clinicians.practiceId, admin.practiceId), eq(clinicians.role, "clinician")));
+  if (!clinician) return { ok: false, message: "We couldn't find that clinician. Please refresh the page." };
+  const row = {
+    emergencyName: v.name || null,
+    emergencyRelationship: v.relationship || null,
+    emergencyPhone: v.phone || null,
+    updatedAt: new Date(),
+  };
+  await db
+    .insert(clinicianProfiles)
+    .values({ clinicianId: clinician.id, ...row })
+    .onConflictDoUpdate({ target: clinicianProfiles.clinicianId, set: row });
+  revalidatePath(`/admin/clinicians/${clinician.id}`);
   return { ok: true };
 }

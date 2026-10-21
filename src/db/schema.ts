@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  customType,
   boolean,
   check,
   date,
@@ -35,6 +36,14 @@ export const practices = pgTable(
     // ISO 4217 code the practice bills in, chosen by the admin. Null means the country's
     // standard currency (currencyFor(country) in src/lib/countries.ts).
     currency: text("currency"),
+    // Contract letterhead (spec v2 section 5c): contact details printed under the logo, or an
+    // uploaded letterhead image (PNG/JPEG data URL, like the logo) that replaces the text version.
+    letterheadAddress: text("letterhead_address"),
+    letterheadPhone: text("letterhead_phone"),
+    letterheadEmail: text("letterhead_email"),
+    letterheadImage: text("letterhead_image"),
+    // Last contract number given out, for gap-free "CT-2026-07" numbers.
+    lastContractNumber: integer("last_contract_number").notNull().default(0),
     // Letterhead logo: a PNG/JPEG data URL, resized in the browser and checked by
     // parseLogoDataUrl. Served by /api/practice-logo, never embedded in pages.
     logo: text("logo"),
@@ -540,3 +549,143 @@ export const billingReminders = pgTable(
   },
   (t) => [index("billing_reminders_practice_idx").on(t.practiceId, t.createdAt)],
 );
+
+// Raw file bytes. PGlite gives Uint8Array, postgres-js a Buffer (also a Uint8Array).
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({ dataType: () => "bytea" });
+
+// Uploaded files (spec v2 "Documents and files"), stored in the database behind the login until
+// hosting is decided. Who can see one follows from what it belongs to (src/lib/files.ts):
+//   clinician        the clinician's own Profile documents (resume, W-9); they and their admin
+//   clinician_admin  documents the admin keeps about a clinician; admins only
+//   patient          clinical documents on a patient (referrals, reports, results); admins
+//   location         certificates, leases, policies (PDF only); admins
+export const files = pgTable(
+  "files",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    ownerKind: text("owner_kind", { enum: ["clinician", "clinician_admin", "patient", "location"] }).notNull(),
+    ownerId: text("owner_id").notNull(),
+    // For the clinician's Profile: "resume" or "w9" (one each); null for everything else.
+    slot: text("slot"),
+    name: text("name").notNull(),
+    description: text("description"),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    data: bytea("data").notNull(),
+    uploadedById: text("uploaded_by_id").references(() => clinicians.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("files_owner_idx").on(t.ownerKind, t.ownerId),
+    check("files_owner_kind_check", sql`${t.ownerKind} in ('clinician', 'clinician_admin', 'patient', 'location')`),
+  ],
+);
+
+// The clinician's Profile (spec v2 section 5c), plus the emergency contact the admin keeps.
+export const clinicianProfiles = pgTable("clinician_profiles", {
+  clinicianId: text("clinician_id")
+    .primaryKey()
+    .references(() => clinicians.id, { onDelete: "cascade" }),
+  speciality: text("speciality"),
+  licenseNumber: text("license_number"),
+  licenseIssuer: text("license_issuer"),
+  licenseExpiry: date("license_expiry"),
+  // [{ id, level, course, school, year }]
+  education: jsonb("education").$type<EducationEntry[]>().notNull().default([]),
+  // [{ id, name, issuer, expiry }]
+  certifications: jsonb("certifications").$type<Certification[]>().notNull().default([]),
+  emergencyName: text("emergency_name"),
+  emergencyRelationship: text("emergency_relationship"),
+  emergencyPhone: text("emergency_phone"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type EducationEntry = { id: string; level: string; course: string; school: string; year: string };
+export type Certification = { id: string; name: string; issuer: string; expiry: string };
+export type ContractTerms = { start: string; length: string; pay: string; role: string; extra: string };
+export type Letterhead = { address: string; phone: string; email: string; image: string | null };
+
+// Contracts (spec v2 section 5c): Draft, Sent, Feedback (a message instead of signing), Signed.
+// Signed contracts are locked by a trigger (drizzle/0024).
+export const contracts = pgTable(
+  "contracts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    // "CT-2026-07", gap-free per practice (practices.last_contract_number).
+    label: text("label").notNull(),
+    clinicianId: text("clinician_id")
+      .notNull()
+      .references(() => clinicians.id, { onDelete: "restrict" }),
+    type: text("type").notNull(),
+    terms: jsonb("terms").$type<ContractTerms>().notNull(),
+    // The letterhead as it was when sent, so later changes never alter a sent contract.
+    letterhead: jsonb("letterhead").$type<Letterhead>(),
+    status: text("status", { enum: ["draft", "sent", "feedback", "signed"] }).notNull().default("draft"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    adminSignature: text("admin_signature"),
+    adminSignedName: text("admin_signed_name"),
+    adminSignedAt: timestamp("admin_signed_at", { withTimezone: true }),
+    clinicianSignature: text("clinician_signature"),
+    clinicianSignedAt: timestamp("clinician_signed_at", { withTimezone: true }),
+    seenByAdminAt: timestamp("seen_by_admin_at", { withTimezone: true }),
+    seenByClinicianAt: timestamp("seen_by_clinician_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("contracts_practice_label_unique").on(t.practiceId, t.label),
+    index("contracts_clinician_idx").on(t.clinicianId),
+    check("contracts_status_check", sql`${t.status} in ('draft', 'sent', 'feedback', 'signed')`),
+    check(
+      "contracts_signed_needs_signatures",
+      sql`${t.status} <> 'signed' or (${t.adminSignature} is not null and ${t.clinicianSignature} is not null)`,
+    ),
+  ],
+);
+
+// One message thread per contract. Messages can't be edited or deleted (drizzle/0024).
+export const contractMessages = pgTable(
+  "contract_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contractId: uuid("contract_id")
+      .notNull()
+      .references(() => contracts.id, { onDelete: "restrict" }),
+    authorId: text("author_id").references(() => clinicians.id, { onDelete: "set null" }),
+    fromRole: text("from_role", { enum: ["admin", "clinician"] }).notNull(),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("contract_messages_contract_idx").on(t.contractId)],
+);
+
+export type AgreementSection = { h: string; text: string };
+
+// Service agreements (spec v2 section 5): one per patient, signed by the patient and the admin on
+// the device. Locked once both have signed (drizzle/0024).
+export const serviceAgreements = pgTable("service_agreements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  practiceId: uuid("practice_id")
+    .notNull()
+    .references(() => practices.id, { onDelete: "cascade" }),
+  patientId: uuid("patient_id")
+    .notNull()
+    .unique()
+    .references(() => patients.id, { onDelete: "restrict" }),
+  // The wording as signed: filled from the patient and practice details at the first signature.
+  sections: jsonb("sections").$type<AgreementSection[]>().notNull(),
+  parties: text("parties").notNull(),
+  patientSignature: text("patient_signature"),
+  patientSignedAt: timestamp("patient_signed_at", { withTimezone: true }),
+  adminSignature: text("admin_signature"),
+  adminSignedName: text("admin_signed_name"),
+  adminSignedAt: timestamp("admin_signed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

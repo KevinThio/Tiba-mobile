@@ -1,10 +1,11 @@
-import { ChevronRight, CircleAlert, Landmark, LayoutDashboard, ReceiptText, Star, UserPlus, UsersRound, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, FileSignature, Landmark, LayoutDashboard, ReceiptText, Star, UserPlus, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { invoiceCounts, OVERDUE_DAYS, unbilledOverdue } from "@/lib/admin-billing";
 import { requireAdmin } from "@/lib/auth";
+import { unreadOfTypes } from "@/lib/notifications";
 import { newReviewCount, pendingClinicianCount, possibleDuplicates } from "@/lib/practice";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -18,7 +19,7 @@ type Attention = {
 };
 
 export default async function AdminOverviewPage() {
-  const { name, practiceName, practiceId } = await requireAdmin();
+  const { id, name, practiceName, practiceId } = await requireAdmin();
   const [waiting, newReviews, duplicates, unbilled, invoiceTotals] = await Promise.all([
     pendingClinicianCount(practiceId),
     newReviewCount(practiceId),
@@ -26,6 +27,7 @@ export default async function AdminOverviewPage() {
     unbilledOverdue(practiceId),
     invoiceCounts(practiceId),
   ]);
+  const contractNews = await unreadOfTypes(id, ["contract_message", "contract_signed"]);
 
   const items: Attention[] = [];
   if (waiting > 0) {
@@ -61,6 +63,15 @@ export default async function AdminOverviewPage() {
       icon: CircleAlert,
       title: `${invoiceTotals.issues === 1 ? "1 invoice has" : `${invoiceTotals.issues} invoices have`} an issue`,
       detail: "Waiting for the clinician to fix.",
+    });
+  }
+  for (const c of contractNews) {
+    items.push({
+      href: c.href,
+      icon: FileSignature,
+      title: c.title,
+      detail: c.type === "contract_signed" ? "Check it under Contracts." : "Reply, or update the contract and send it again.",
+      badge: { label: c.type === "contract_signed" ? "Signed" : "Reply", variant: "info" },
     });
   }
   for (const d of duplicates) {

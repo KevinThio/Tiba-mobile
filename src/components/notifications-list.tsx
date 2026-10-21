@@ -26,6 +26,8 @@ const ICONS: Record<string, LucideIcon> = {
   duplicate: UsersRound,
   review: Star,
   contract: FileSignature,
+  contract_message: FileSignature,
+  contract_signed: FileSignature,
   unbilled: Landmark,
 };
 

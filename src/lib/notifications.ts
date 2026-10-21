@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { clinicians, notifications } from "@/db/schema";
 
@@ -60,4 +60,14 @@ export function listNotifications(accountId: string) {
     .where(eq(notifications.recipientId, accountId))
     .orderBy(desc(notifications.createdAt))
     .limit(100);
+}
+
+/** Unread notifications of these types, newest first (Overview's "Needs your attention"). */
+export function unreadOfTypes(accountId: string, types: string[]) {
+  return db
+    .select({ id: notifications.id, type: notifications.type, title: notifications.title, href: notifications.href })
+    .from(notifications)
+    .where(and(eq(notifications.recipientId, accountId), isNull(notifications.readAt), inArray(notifications.type, types)))
+    .orderBy(desc(notifications.createdAt))
+    .limit(10);
 }

@@ -23,7 +23,15 @@ type Row = {
   createdAt: string;
   clinicianName: string;
   possibleDuplicate: boolean;
+  agreement: "signed" | "patient" | "admin" | "none";
 };
+
+const AGREEMENT = {
+  none: { label: "No agreement", variant: "neutral" },
+  patient: { label: "Needs your signature", variant: "warning" },
+  admin: { label: "Waiting for the patient", variant: "neutral" },
+  signed: { label: "Agreement signed", variant: "success" },
+} as const;
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const fmt = (d: string) => dateFormat.format(new Date(d));
@@ -139,7 +147,11 @@ function PatientRow({ patient: p }: { patient: Row }) {
           >
             {p.fullName}
           </Link>
-          {p.possibleDuplicate && <Badge variant="warning">Possible duplicate</Badge>}
+          {p.possibleDuplicate ? (
+            <Badge variant="warning">Possible duplicate</Badge>
+          ) : (
+            <Badge variant={AGREEMENT[p.agreement].variant}>{AGREEMENT[p.agreement].label}</Badge>
+          )}
         </p>
         <p className="truncate text-small text-muted-foreground">
           {[p.clinicianName, when, p.insurer].filter(Boolean).join(" · ")}

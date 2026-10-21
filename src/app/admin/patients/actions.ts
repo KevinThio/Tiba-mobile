@@ -4,11 +4,13 @@ import { and, asc, eq, ilike, isNotNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, patients } from "@/db/schema";
+import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, patients, serviceAgreements } from "@/db/schema";
+import { loadAgreement } from "@/lib/agreements";
 import { requireAdmin } from "@/lib/auth";
 import { clearNotifications } from "@/lib/notifications";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
 import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
+import { isSignatureImage } from "@/lib/signature";
 
 export type DiagnosisOption = { code: string; description: string };
 
@@ -272,4 +274,46 @@ export async function updatePatientCare(input: z.input<typeof careInput>): Promi
   if (!updated.length) return { ok: false, message: "We couldn't find that patient. Please refresh the page." };
   revalidatePath("/admin/patients");
   return { ok: true };
+}
+
+/**
+ * Service agreement → Save signatures: the patient and the admin sign on the device, together or
+ * one at a time. The first signature fixes the wording; once both have signed it's locked
+ * (drizzle/0024).
+ */
+export async function saveAgreementSignatures(input: {
+  patientId: string;
+  patientSignature: string | null;
+  adminSignature: string | null;
+}): Promise<{ ok: true; complete: boolean } | { ok: false; message: string }> {
+  const admin = await requireAdmin();
+  const found = await loadAgreement(String(input.patientId ?? ""), admin.practiceId);
+  if (!found) return { ok: false, message: "We couldn't find that patient. Please go back to Patients." };
+  const current = found.agreement;
+  const patientSig = input.patientSignature && !current?.patientSignature ? input.patientSignature : null;
+  const adminSig = input.adminSignature && !current?.adminSignature ? input.adminSignature : null;
+  if (!patientSig && !adminSig) return { ok: false, message: "Add a signature first: the patient's, yours, or both." };
+  if ((patientSig && !isSignatureImage(patientSig)) || (adminSig && !isSignatureImage(adminSig))) {
+    return { ok: false, message: "A signature didn't come through. Clear it and sign again." };
+  }
+  const now = new Date();
+  const signatures = {
+    ...(patientSig && { patientSignature: patientSig, patientSignedAt: now }),
+    ...(adminSig && { adminSignature: adminSig, adminSignedName: admin.name, adminSignedAt: now }),
+  };
+  if (current) {
+    await db.update(serviceAgreements).set({ ...signatures, updatedAt: now }).where(eq(serviceAgreements.id, current.id));
+  } else {
+    await db.insert(serviceAgreements).values({
+      practiceId: admin.practiceId,
+      patientId: found.patient.id,
+      sections: found.sections,
+      parties: found.parties,
+      ...signatures,
+    });
+  }
+  revalidatePath(`/admin/patients/${found.patient.id}`);
+  revalidatePath("/admin/patients");
+  const complete = Boolean((current?.patientSignature || patientSig) && (current?.adminSignature || adminSig));
+  return { ok: true, complete };
 }

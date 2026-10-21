@@ -3,7 +3,8 @@ import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appointments, clinicians, invoiceItems, invoices, patients, practices } from "@/db/schema";
-import { formatMoneyForPdf } from "@/lib/countries";
+import { formatMoney } from "@/lib/countries";
+import { PDF_FONT } from "@/lib/pdf-fonts";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
 
 // Invoice PDF with the practice letterhead (same content as NoteLetterhead on screen).
@@ -16,17 +17,17 @@ const MUTED = "#686D76";
 const BORDER = "#DFE0E5";
 
 const s = StyleSheet.create({
-  page: { padding: 48, fontFamily: "Helvetica", fontSize: 10, color: INK },
+  page: { padding: 48, fontFamily: PDF_FONT, fontSize: 10, color: INK },
   head: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: BORDER },
   brand: { flexDirection: "row", alignItems: "center", gap: 12, maxWidth: 320 },
   logo: { height: 52, maxWidth: 110, objectFit: "contain" },
-  practice: { fontFamily: "Helvetica-Bold", fontSize: 16, color: FERN },
+  practice: { fontFamily: PDF_FONT, fontWeight: "bold", fontSize: 16, color: FERN },
   muted: { color: MUTED },
-  title: { fontFamily: "Helvetica-Bold", fontSize: 20, color: FERN, textAlign: "right" },
+  title: { fontFamily: PDF_FONT, fontWeight: "bold", fontSize: 20, color: FERN, textAlign: "right" },
   meta: { textAlign: "right", marginTop: 4, color: MUTED },
   section: { marginTop: 22 },
   label: { fontSize: 8, color: MUTED, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 },
-  bold: { fontFamily: "Helvetica-Bold" },
+  bold: { fontFamily: PDF_FONT, fontWeight: "bold" },
   table: { marginTop: 22, borderWidth: 1, borderColor: BORDER, borderRadius: 6 },
   tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: BORDER },
   th: { flexDirection: "row", backgroundColor: FERN_PALE },
@@ -36,7 +37,7 @@ const s = StyleSheet.create({
   cTimes: { width: "22%" },
   cAmount: { width: "18%", textAlign: "right" },
   total: { flexDirection: "row", justifyContent: "flex-end", marginTop: 14, gap: 24 },
-  totalValue: { fontFamily: "Helvetica-Bold", fontSize: 13, color: FERN },
+  totalValue: { fontFamily: PDF_FONT, fontWeight: "bold", fontSize: 13, color: FERN },
   footer: { position: "absolute", left: 48, right: 48, bottom: 36, fontSize: 8, color: MUTED, textAlign: "center" },
 });
 
@@ -148,7 +149,7 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
               <Text style={[s.cell, s.cTimes]}>
                 {item.timeIn ? time(item.timeIn) : time(item.startsAt)} – {item.timeOut ? time(item.timeOut) : "–"}
               </Text>
-              <Text style={[s.cell, s.cAmount]}>{formatMoneyForPdf(item.feeMinor, data.country, data.currency)}</Text>
+              <Text style={[s.cell, s.cAmount]}>{formatMoney(item.feeMinor, data.country, data.currency)}</Text>
             </View>
           ))}
         </View>
@@ -157,7 +158,7 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
           <Text style={s.muted}>
             Total ({data.items.length} visit{data.items.length === 1 ? "" : "s"})
           </Text>
-          <Text style={s.totalValue}>{formatMoneyForPdf(data.totalMinor, data.country, data.currency)}</Text>
+          <Text style={s.totalValue}>{formatMoney(data.totalMinor, data.country, data.currency)}</Text>
         </View>
 
         <Text style={s.footer} fixed>

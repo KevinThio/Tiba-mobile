@@ -2,6 +2,7 @@ import { CalendarX2, ChevronRight, Info, PenLine, ReceiptText } from "lucide-rea
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
+import { DownloadPdfButton } from "@/components/download-pdf-button";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { RelativeDay } from "@/components/relative-day";
@@ -71,6 +72,7 @@ export default async function PatientRecordPage({ params }: PageProps<"/patients
         title={patient.fullName}
         actions={
           <div className="flex flex-wrap gap-2">
+            <DownloadPdfButton href={`/api/patients/${patient.id}/pdf`} />
             {draft ? (
               <Button nativeButton={false} render={<Link href={`/appointments/${draft.id}`} />}>
                 <PenLine aria-hidden /> Finish note

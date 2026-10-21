@@ -54,7 +54,12 @@ export default async function AdminLocationsPage() {
                 <MapPin className="size-5" aria-hidden />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{l.name}</p>
+                <Link
+                  href={`/admin/locations/${l.id}`}
+                  className="block truncate rounded-xs font-semibold outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring"
+                >
+                  {l.name}
+                </Link>
                 <p className="truncate text-small text-muted-foreground">{l.address ?? "No address · online"}</p>
                 <p className="truncate text-caption text-subtle-foreground">{l.services.join(" · ")}</p>
               </div>

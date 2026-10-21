@@ -3,12 +3,15 @@ import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { FileList } from "@/components/file-list";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
-import { clinicians, diagnosisCodes, patientDiagnoses, patients } from "@/db/schema";
+import { clinicians, diagnosisCodes, patientDiagnoses, patients, serviceAgreements } from "@/db/schema";
 import { practiceClinicians } from "@/lib/admin-billing";
+import { agreementStatus } from "@/lib/agreements";
+import { listFiles, toSummary } from "@/lib/files";
 import { requireAdmin } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
 import { insurersFor, SERVICES } from "@/lib/patient-options";
@@ -16,11 +19,18 @@ import { practiceBilling } from "@/lib/practice";
 import { CareForm, StatusButton } from "./patient-forms";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const STAMP = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+const AGREEMENT = {
+  none: { label: "No agreement", variant: "neutral" },
+  patient: { label: "Needs your signature", variant: "warning" },
+  admin: { label: "Waiting for the patient", variant: "warning" },
+  signed: { label: "Agreement signed", variant: "success" },
+} as const;
 
 /**
  * Patient details, admin (spec v2 section 5 and the prototype): details, care (clinician,
- * insurer, referral, start of care) and Discharge or Reactivate. Service agreements and clinical
- * documents come with the paperwork screens (spec step 8).
+ * insurer, referral, start of care), Discharge or Reactivate, the service agreement and clinical
+ * documents.
  */
 export default async function AdminPatientPage({ params }: PageProps<"/admin/patients/[id]">) {
   const admin = await requireAdmin();
@@ -49,7 +59,7 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
     .where(and(eq(patients.id, id), eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")));
   if (!patient) notFound();
 
-  const [diagnoses, team, billing] = await Promise.all([
+  const [diagnoses, team, billing, agreementRow, documents] = await Promise.all([
     db
       .select({ code: diagnosisCodes.code, description: diagnosisCodes.description })
       .from(patientDiagnoses)
@@ -58,7 +68,20 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
       .orderBy(asc(patientDiagnoses.addedAt)),
     practiceClinicians(admin.practiceId),
     practiceBilling(admin.practiceId),
+    db.select().from(serviceAgreements).where(eq(serviceAgreements.patientId, id)),
+    listFiles(admin.practiceId, "patient", id),
   ]);
+  const first = patient.fullName.split(" ")[0];
+  const signedRow = agreementRow[0] ?? null;
+  const agreement = { status: agreementStatus(signedRow) };
+  const agreementLine =
+    agreement.status === "signed"
+      ? `Signed by ${first} and ${signedRow!.adminSignedName ?? "you"}. Locked; download it from the agreement.`
+      : agreement.status === "patient"
+        ? `${first} signed on ${STAMP.format(signedRow!.patientSignedAt!)}. Add your signature to finish.`
+        : agreement.status === "admin"
+          ? `You signed. ${first} still needs to sign on the device.`
+          : `Filled from ${first}'s details. You both sign on the device.`;
   const services = SERVICES.filter((s) => patient.servicesOrdered.includes(s.value));
   const insurers = insurersFor(billing.country);
 
@@ -127,12 +150,32 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
           />
         </section>
 
-        <section className="grid gap-2 rounded-lg border border-dashed bg-card p-5 sm:p-6 md:col-span-2">
-          <h2 className="text-h3">Service agreement and documents</h2>
-          <p className="text-muted-foreground">
-            The service agreement {patient.fullName.split(" ")[0]} signs, and referral letters, reports and test results, come
-            with the paperwork screens.
-          </p>
+        <section className="grid gap-3 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
+          <h2 className="text-h3">Service agreement</h2>
+          <Badge variant={AGREEMENT[agreement.status].variant} className="w-fit">
+            {AGREEMENT[agreement.status].label}
+          </Badge>
+          <p className="text-small text-muted-foreground">{agreementLine}</p>
+          <Button
+            variant={agreement.status === "signed" ? "outline" : "default"}
+            className="w-fit"
+            nativeButton={false}
+            render={<Link href={`/admin/patients/${patient.id}/agreement`} />}
+          >
+            {agreement.status === "signed" ? "Open agreement" : "Open to sign"}
+          </Button>
+        </section>
+
+        <section className="grid gap-3 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
+          <h2 className="text-h3">Clinical documents</h2>
+          <FileList
+            owner={{ ownerKind: "patient", ownerId: patient.id }}
+            files={documents.map(toSummary)}
+            canUpload
+            canRemove
+            hint={`Referral letters, reports, test results. Kept with ${first}'s record. PDF, Word or an image, up to 5 MB.`}
+            emptyText="No documents yet."
+          />
         </section>
       </div>
     </div>
