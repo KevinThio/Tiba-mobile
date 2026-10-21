@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { PracticeDetailsDialog } from "@/components/practice-details-dialog";
+import { Button } from "@/components/ui/button";
 import { PracticeMark } from "@/components/practice-mark";
 import { SignOutButton } from "@/components/sign-out-button";
 import { requireAdmin } from "@/lib/auth";
@@ -35,6 +37,16 @@ export default async function AdminSettingsPage() {
           </div>
         </dl>
         <CountryForm country={billing.country} currency={billing.chosen} />
+      </section>
+
+      <section className="grid gap-3 rounded-lg border border-border-subtle bg-card p-6 shadow-sm">
+        <h2 className="text-h3">Service agreement</h2>
+        <p className="text-small text-muted-foreground">
+          The wording every new service agreement uses: your rights clauses, billing terms, complaint hotline and administrator.
+        </p>
+        <Button variant="outline" className="w-fit" nativeButton={false} render={<Link href="/admin/settings/agreement" />}>
+          Edit the wording
+        </Button>
       </section>
     </div>
   );

@@ -42,6 +42,8 @@ export const practices = pgTable(
     letterheadPhone: text("letterhead_phone"),
     letterheadEmail: text("letterhead_email"),
     letterheadImage: text("letterhead_image"),
+    // The practice's service agreement wording (src/lib/agreement-template.ts); null = Tiba's default.
+    agreementTemplate: jsonb("agreement_template").$type<{ id: string; h: string; text: string }[]>(),
     // Last contract number given out, for gap-free "CT-2026-07" numbers.
     lastContractNumber: integer("last_contract_number").notNull().default(0),
     // Letterhead logo: a PNG/JPEG data URL, resized in the browser and checked by
@@ -678,8 +680,13 @@ export const serviceAgreements = pgTable("service_agreements", {
     .notNull()
     .unique()
     .references(() => patients.id, { onDelete: "restrict" }),
-  // The wording as signed: filled from the patient and practice details at the first signature.
+  // The wording as signed: the practice's clauses with the details filled in, fixed at the first signature.
   sections: jsonb("sections").$type<AgreementSection[]>().notNull(),
+  // The form's details (client, emergency contact, insurance, services, rates, deposit,
+  // authorizations, decision, initials, who signs). See AgreementDetails. Null on early agreements.
+  details: jsonb("details").$type<Record<string, unknown>>(),
+  // The client (or responsible party) refused to sign; the agency witness signs to record it.
+  refused: boolean("refused").notNull().default(false),
   parties: text("parties").notNull(),
   patientSignature: text("patient_signature"),
   patientSignedAt: timestamp("patient_signed_at", { withTimezone: true }),

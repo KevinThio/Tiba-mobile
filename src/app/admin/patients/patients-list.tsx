@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { initialsOf } from "@/components/practice-mark";
 import { Badge } from "@/components/ui/badge";
+import { AGREEMENT_BADGE, type AgreementStatus } from "@/lib/agreement-template";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -23,15 +24,9 @@ type Row = {
   createdAt: string;
   clinicianName: string;
   possibleDuplicate: boolean;
-  agreement: "signed" | "patient" | "admin" | "none";
+  agreement: AgreementStatus;
 };
 
-const AGREEMENT = {
-  none: { label: "No agreement", variant: "neutral" },
-  patient: { label: "Needs your signature", variant: "warning" },
-  admin: { label: "Waiting for the patient", variant: "neutral" },
-  signed: { label: "Agreement signed", variant: "success" },
-} as const;
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const fmt = (d: string) => dateFormat.format(new Date(d));
@@ -150,7 +145,7 @@ function PatientRow({ patient: p }: { patient: Row }) {
           {p.possibleDuplicate ? (
             <Badge variant="warning">Possible duplicate</Badge>
           ) : (
-            <Badge variant={AGREEMENT[p.agreement].variant}>{AGREEMENT[p.agreement].label}</Badge>
+            <Badge variant={AGREEMENT_BADGE[p.agreement].variant}>{AGREEMENT_BADGE[p.agreement].label}</Badge>
           )}
         </p>
         <p className="truncate text-small text-muted-foreground">

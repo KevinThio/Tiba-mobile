@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { clinicians, diagnosisCodes, patientDiagnoses, patients, serviceAgreements } from "@/db/schema";
 import { practiceClinicians } from "@/lib/admin-billing";
-import { agreementStatus } from "@/lib/agreements";
+import { AGREEMENT_BADGE } from "@/lib/agreement-template";
+import { agreementStatus, isComplete } from "@/lib/agreements";
 import { listFiles, toSummary } from "@/lib/files";
 import { requireAdmin } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
@@ -20,12 +21,6 @@ import { CareForm, StatusButton } from "./patient-forms";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const STAMP = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
-const AGREEMENT = {
-  none: { label: "No agreement", variant: "neutral" },
-  patient: { label: "Needs your signature", variant: "warning" },
-  admin: { label: "Waiting for the patient", variant: "warning" },
-  signed: { label: "Agreement signed", variant: "success" },
-} as const;
 
 /**
  * Patient details, admin (spec v2 section 5 and the prototype): details, care (clinician,
@@ -77,6 +72,10 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
   const agreementLine =
     agreement.status === "signed"
       ? `Signed by ${first} and ${signedRow!.adminSignedName ?? "you"}. Locked; download it from the agreement.`
+      : agreement.status === "refused"
+        ? `${first} refused to sign; ${signedRow!.adminSignedName ?? "you"} recorded it as the agency witness. Locked.`
+      : agreement.status === "draft"
+        ? "Details are saved. Sign it on the device with the client to finish."
       : agreement.status === "patient"
         ? `${first} signed on ${STAMP.format(signedRow!.patientSignedAt!)}. Add your signature to finish.`
         : agreement.status === "admin"
@@ -152,17 +151,17 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
 
         <section className="grid gap-3 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
           <h2 className="text-h3">Service agreement</h2>
-          <Badge variant={AGREEMENT[agreement.status].variant} className="w-fit">
-            {AGREEMENT[agreement.status].label}
+          <Badge variant={AGREEMENT_BADGE[agreement.status].variant} className="w-fit">
+            {AGREEMENT_BADGE[agreement.status].label}
           </Badge>
           <p className="text-small text-muted-foreground">{agreementLine}</p>
           <Button
-            variant={agreement.status === "signed" ? "outline" : "default"}
+            variant={isComplete(agreement.status) ? "outline" : "default"}
             className="w-fit"
             nativeButton={false}
             render={<Link href={`/admin/patients/${patient.id}/agreement`} />}
           >
-            {agreement.status === "signed" ? "Open agreement" : "Open to sign"}
+            {isComplete(agreement.status) ? "Open agreement" : agreement.status === "none" ? "Start agreement" : "Continue agreement"}
           </Button>
         </section>
 

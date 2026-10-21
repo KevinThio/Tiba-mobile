@@ -176,6 +176,20 @@
       "when": 1792593879195,
       "tag": "0024_lock_paperwork",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792600601004,
+      "tag": "0025_agreement_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792600607748,
+      "tag": "0026_lock_agreement_details",
+      "breakpoints": true
     }
   ]
 }

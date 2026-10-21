@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { clinicians, patients, serviceAgreements } from "@/db/schema";
+import { agreementStatus } from "@/lib/agreements";
 import { requireAdmin } from "@/lib/auth";
 import { PatientsList } from "./patients-list";
 
@@ -23,8 +24,10 @@ export default async function AdminPatientsPage() {
       createdAt: patients.createdAt,
       clinicianName: clinicians.name,
       possibleDuplicate: isNotNull(patients.duplicateFlaggedAt),
-      agreementPatient: isNotNull(serviceAgreements.patientSignature),
-      agreementAdmin: isNotNull(serviceAgreements.adminSignature),
+      agreementPatient: serviceAgreements.patientSignature,
+      agreementAdmin: serviceAgreements.adminSignature,
+      agreementRefused: serviceAgreements.refused,
+      agreementDetails: isNotNull(serviceAgreements.details),
     })
     .from(patients)
     .innerJoin(clinicians, eq(clinicians.id, patients.clinicianId))
@@ -33,15 +36,15 @@ export default async function AdminPatientsPage() {
     .orderBy(asc(patients.fullName));
 
   // Merged duplicates are filtered out in the query; narrow the type to match.
-  const rows = all.map(({ agreementPatient, agreementAdmin, ...r }) => ({
+  const rows = all.map(({ agreementPatient, agreementAdmin, agreementRefused, agreementDetails, ...r }) => ({
     ...r,
     status: r.status as "active" | "discharged",
     possibleDuplicate: Boolean(r.possibleDuplicate),
-    agreement: (agreementPatient && agreementAdmin ? "signed" : agreementPatient ? "patient" : agreementAdmin ? "admin" : "none") as
-      | "signed"
-      | "patient"
-      | "admin"
-      | "none",
+    agreement: agreementStatus(
+      agreementPatient === null && agreementAdmin === null && !agreementDetails
+        ? null
+        : { patientSignature: agreementPatient, adminSignature: agreementAdmin, refused: Boolean(agreementRefused), details: agreementDetails || null },
+    ),
   }));
   const active = rows.filter((r) => r.status === "active").length;
 
