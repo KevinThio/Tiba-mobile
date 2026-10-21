@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
 import { UserPlus } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
@@ -11,7 +11,7 @@ import { PatientsList } from "./patients-list";
 /** Every patient in the practice (spec v2 admin Patients). */
 export default async function AdminPatientsPage() {
   const admin = await requireAdmin();
-  const rows = await db
+  const all = await db
     .select({
       id: patients.id,
       fullName: patients.fullName,
@@ -22,12 +22,15 @@ export default async function AdminPatientsPage() {
       startOfCare: patients.startOfCare,
       createdAt: patients.createdAt,
       clinicianName: clinicians.name,
+      possibleDuplicate: isNotNull(patients.duplicateFlaggedAt),
     })
     .from(patients)
     .innerJoin(clinicians, eq(clinicians.id, patients.clinicianId))
-    .where(eq(patients.practiceId, admin.practiceId))
+    .where(and(eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")))
     .orderBy(asc(patients.fullName));
 
+  // Merged duplicates are filtered out in the query; narrow the type to match.
+  const rows = all.map((r) => ({ ...r, status: r.status as "active" | "discharged", possibleDuplicate: Boolean(r.possibleDuplicate) }));
   const active = rows.filter((r) => r.status === "active").length;
 
   return (

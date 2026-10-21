@@ -1,6 +1,6 @@
 import { CalendarX2, ChevronRight, Info, PenLine, ReceiptText } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -45,6 +45,10 @@ export default async function PatientRecordPage({ params }: PageProps<"/patients
   const record = await patientRecord(id, clinician.practiceId, clinician.id);
   if (!record) notFound();
   const { patient, diagnoses, visits } = record;
+  if (patient.status === "merged") {
+    if (patient.mergedIntoId) redirect(`/patients/${patient.mergedIntoId}`);
+    notFound();
+  }
   const team = await careTeam(id, clinician.practiceId);
 
   const past = visits.filter((v) => v.status !== "upcoming");

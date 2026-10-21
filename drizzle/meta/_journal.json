@@ -120,6 +120,13 @@
       "when": 1792571512012,
       "tag": "0016_patient_duplicate_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792573173061,
+      "tag": "0017_patient_merge",
+      "breakpoints": true
     }
   ]
 }

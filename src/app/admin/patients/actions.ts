@@ -1,10 +1,10 @@
 "use server";
 
-import { and, asc, eq, ilike, ne, or } from "drizzle-orm";
+import { and, asc, eq, ilike, isNotNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { clinicians, diagnosisCodes, patientDiagnoses, patients } from "@/db/schema";
+import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, patients } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
 import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
@@ -138,10 +138,96 @@ export async function setPatientStatus(input: {
     .update(patients)
     .set({ status: input.status, updatedAt: new Date() })
     .where(
-      and(eq(patients.id, input.patientId), eq(patients.practiceId, admin.practiceId), ne(patients.status, input.status)),
+      and(
+        eq(patients.id, input.patientId),
+        eq(patients.practiceId, admin.practiceId),
+        ne(patients.status, input.status),
+        ne(patients.status, "merged"),
+      ),
     )
     .returning({ id: patients.id });
   if (!updated.length) return { ok: false, message: "We couldn't find that patient. Please refresh the page." };
   revalidatePath("/admin/patients");
   return { ok: true };
+}
+
+type ReviewResult = { ok: true; name: string } | { ok: false; message: string };
+
+/** The flagged entry and the record it may duplicate, both in the admin's practice. */
+async function flaggedPair(newId: string, practiceId: string) {
+  if (!z.uuid().safeParse(newId).success) return null;
+  const [entry] = await db
+    .select({ id: patients.id, name: patients.fullName, duplicateOfId: patients.duplicateOfId })
+    .from(patients)
+    .where(
+      and(
+        eq(patients.id, newId),
+        eq(patients.practiceId, practiceId),
+        ne(patients.status, "merged"),
+        isNotNull(patients.duplicateFlaggedAt),
+      ),
+    );
+  if (!entry) return null;
+  const [existing] = entry.duplicateOfId
+    ? await db
+        .select({ id: patients.id, name: patients.fullName })
+        .from(patients)
+        .where(and(eq(patients.id, entry.duplicateOfId), eq(patients.practiceId, practiceId), ne(patients.status, "merged")))
+    : [];
+  return { entry, existing: existing ?? null };
+}
+
+/** "Confirm new patient" (spec v2 section 5b): they're a different person, so the flag clears. */
+export async function confirmNewPatient(input: { patientId: string }): Promise<ReviewResult> {
+  const admin = await requireAdmin();
+  const pair = await flaggedPair(input.patientId, admin.practiceId);
+  if (!pair) return { ok: false, message: "This patient isn't waiting for a duplicate check any more. Please go back to Patients." };
+  await db
+    .update(patients)
+    .set({ duplicateOfId: null, duplicateFlaggedAt: null, updatedAt: new Date() })
+    .where(eq(patients.id, pair.entry.id));
+  revalidatePath("/", "layout");
+  return { ok: true, name: pair.entry.name };
+}
+
+/**
+ * "Merge into existing" (spec v2 section 5b): keeps the existing record and moves the new
+ * entry's visits (with their notes) and invoices into it. Diagnosis codes are added, and details
+ * the existing record is missing (phone, email, ordering doctor, services) are filled in from
+ * the new entry. The new entry is then hidden as merged, pointing at the kept record.
+ */
+export async function mergeIntoExisting(input: { patientId: string }): Promise<ReviewResult> {
+  const admin = await requireAdmin();
+  const pair = await flaggedPair(input.patientId, admin.practiceId);
+  if (!pair) return { ok: false, message: "This patient isn't waiting for a duplicate check any more. Please go back to Patients." };
+  if (!pair.existing) {
+    return { ok: false, message: "The other record isn't in your practice any more, so there's nothing to merge into. Confirm the new patient instead." };
+  }
+  const from = pair.entry.id;
+  const into = pair.existing.id;
+
+  await db.transaction(async (tx) => {
+    await tx.update(appointments).set({ patientId: into }).where(eq(appointments.patientId, from));
+    await tx.update(invoices).set({ patientId: into }).where(eq(invoices.patientId, from));
+    await tx.execute(sql`
+      insert into patient_diagnoses (patient_id, code, added_at)
+      select ${into}, code, added_at from patient_diagnoses where patient_id = ${from}
+      on conflict do nothing`);
+    await tx.execute(sql`
+      update patients kept set
+        phone = coalesce(kept.phone, dup.phone),
+        invoice_email = coalesce(kept.invoice_email, dup.invoice_email),
+        ordering_doctor = coalesce(kept.ordering_doctor, dup.ordering_doctor),
+        services_ordered = (select array(select distinct unnest(kept.services_ordered || dup.services_ordered))),
+        updated_at = now()
+      from patients dup
+      where kept.id = ${into} and dup.id = ${from}`);
+    await tx
+      .update(patients)
+      .set({ status: "merged", mergedIntoId: into, duplicateOfId: null, duplicateFlaggedAt: null, updatedAt: new Date() })
+      .where(eq(patients.id, from));
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true, name: pair.existing.name };
 }

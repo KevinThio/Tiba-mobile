@@ -1,7 +1,7 @@
 import "server-only";
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { clinicians, practices, reviews } from "@/db/schema";
+import { clinicians, patients, practices, reviews } from "@/db/schema";
 import { practiceLogoUrl } from "@/lib/practice-logo";
 
 /** The practice's logo URL, or null when it has none. Only checks that a logo exists; the image comes from /api/practice-logo. */
@@ -47,4 +47,13 @@ export async function newReviewCount(practiceId: string) {
     .from(reviews)
     .where(and(eq(reviews.practiceId, practiceId), isNull(reviews.seenAt), isNull(reviews.hiddenAt)));
   return row?.n ?? 0;
+}
+
+/** Patients a clinician added as a possible duplicate, waiting for the admin's check (spec v2 section 5b). */
+export function possibleDuplicates(practiceId: string) {
+  return db
+    .select({ id: patients.id, name: patients.fullName })
+    .from(patients)
+    .where(and(eq(patients.practiceId, practiceId), isNotNull(patients.duplicateFlaggedAt), ne(patients.status, "merged")))
+    .orderBy(asc(patients.duplicateFlaggedAt));
 }

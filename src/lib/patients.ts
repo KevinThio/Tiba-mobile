@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, isNotNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appointments, clinicians, diagnosisCodes, notes, patientDiagnoses, patients } from "@/db/schema";
 
@@ -25,7 +25,7 @@ export async function practicePatients(practiceId: string, clinicianId: string) 
         where ${mine} and a.starts_at + make_interval(mins => a.duration_minutes) < now() and n.signed_at is null)`,
     })
     .from(patients)
-    .where(eq(patients.practiceId, practiceId))
+    .where(and(eq(patients.practiceId, practiceId), ne(patients.status, "merged")))
     .orderBy(asc(patients.status), asc(patients.fullName));
 }
 
@@ -41,6 +41,7 @@ export async function patientRecord(patientId: string, practiceId: string, clini
       phone: patients.phone,
       email: patients.invoiceEmail,
       status: patients.status,
+      mergedIntoId: patients.mergedIntoId,
       servicesOrdered: patients.servicesOrdered,
       orderingDoctor: patients.orderingDoctor,
       createdAt: patients.createdAt,

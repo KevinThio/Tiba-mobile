@@ -1,10 +1,10 @@
-import { ChevronRight, LayoutDashboard, Star, UserPlus, type LucideIcon } from "lucide-react";
+import { ChevronRight, LayoutDashboard, Star, UserPlus, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { requireAdmin } from "@/lib/auth";
-import { newReviewCount, pendingClinicianCount } from "@/lib/practice";
+import { newReviewCount, pendingClinicianCount, possibleDuplicates } from "@/lib/practice";
 
 type Attention = {
   href: string;
@@ -16,7 +16,11 @@ type Attention = {
 
 export default async function AdminOverviewPage() {
   const { name, practiceName, practiceId } = await requireAdmin();
-  const [waiting, newReviews] = await Promise.all([pendingClinicianCount(practiceId), newReviewCount(practiceId)]);
+  const [waiting, newReviews, duplicates] = await Promise.all([
+    pendingClinicianCount(practiceId),
+    newReviewCount(practiceId),
+    possibleDuplicates(practiceId),
+  ]);
 
   const items: Attention[] = [];
   if (waiting > 0) {
@@ -26,6 +30,15 @@ export default async function AdminOverviewPage() {
       title: `${waiting === 1 ? "1 clinician is" : `${waiting} clinicians are`} waiting to be verified`,
       detail: "They signed up with your practice name and can't see patients until you activate them.",
       badge: { label: "Verify", variant: "warning" },
+    });
+  }
+  for (const d of duplicates) {
+    items.push({
+      href: `/admin/patients/${d.id}/duplicate`,
+      icon: UsersRound,
+      title: `Check possible duplicate: ${d.name}`,
+      detail: "A clinician added a patient with the same name and date of birth as another record.",
+      badge: { label: "Confirm", variant: "warning" },
     });
   }
   if (newReviews > 0) {

@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
 import { initialsOf } from "@/components/practice-mark";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ type Row = {
   startOfCare: string | null;
   createdAt: string;
   clinicianName: string;
+  possibleDuplicate: boolean;
 };
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -130,11 +132,19 @@ function PatientRow({ patient: p }: { patient: Row }) {
         {initialsOf(p.fullName)}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">{p.fullName}</p>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate font-semibold">{p.fullName}</span>
+          {p.possibleDuplicate && <Badge variant="warning">Possible duplicate</Badge>}
+        </p>
         <p className="truncate text-small text-muted-foreground">
           {[p.clinicianName, when, p.insurer].filter(Boolean).join(" · ")}
         </p>
       </div>
+      {p.possibleDuplicate && (
+        <Button size="sm" nativeButton={false} render={<Link href={`/admin/patients/${p.id}/duplicate`} />}>
+          Review
+        </Button>
+      )}
       <Button size="sm" variant={next === "discharged" ? "ghost" : "secondary"} disabled={pending} onClick={toggle}>
         {next === "discharged" ? "Discharge" : "Reactivate"}
       </Button>

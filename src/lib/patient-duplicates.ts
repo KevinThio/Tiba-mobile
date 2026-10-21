@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { patients } from "@/db/schema";
 
@@ -16,7 +16,14 @@ export async function findDuplicatePatient(practiceId: string, fullName: string,
   const [match] = await db
     .select({ id: patients.id, name: patients.fullName, dateOfBirth: patients.dateOfBirth })
     .from(patients)
-    .where(and(eq(patients.practiceId, practiceId), eq(patients.dateOfBirth, dateOfBirth), sql`${nameKey} = ${key}`))
+    .where(
+      and(
+        eq(patients.practiceId, practiceId),
+        eq(patients.dateOfBirth, dateOfBirth),
+        ne(patients.status, "merged"),
+        sql`${nameKey} = ${key}`,
+      ),
+    )
     .limit(1);
   return match ?? null;
 }

@@ -185,7 +185,9 @@ export const patients = pgTable(
     orderingDoctor: text("ordering_doctor"),
     referralDate: date("referral_date"),
     startOfCare: date("start_of_care"),
-    status: text("status", { enum: ["active", "discharged"] }).notNull().default("active"),
+    // "merged": a duplicate the admin merged into another record (mergedIntoId); hidden everywhere.
+    status: text("status", { enum: ["active", "discharged", "merged"] }).notNull().default("active"),
+    mergedIntoId: uuid("merged_into_id").references((): AnyPgColumn => patients.id, { onDelete: "set null" }),
     // Who added the record (an admin or a clinician); kept if that account goes.
     addedById: text("added_by_id").references(() => clinicians.id, { onDelete: "set null" }),
     // Possible duplicate (spec v2 section 5b): a clinician added this patient although the
@@ -198,7 +200,7 @@ export const patients = pgTable(
   (t) => [
     index("patients_clinician_id_idx").on(t.clinicianId),
     index("patients_practice_id_idx").on(t.practiceId),
-    check("patients_status_check", sql`${t.status} in ('active', 'discharged')`),
+    check("patients_status_check", sql`${t.status} in ('active', 'discharged', 'merged')`),
     // Typo-tolerant name search (pg_trgm).
     index("patients_full_name_trgm_idx").using("gin", sql`${t.fullName} gin_trgm_ops`),
   ],
