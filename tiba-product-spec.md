@@ -433,7 +433,7 @@ Each step builds on the one before. Section 14 has the details for each screen.
 6. **Discipline notes:** SOAP notes with measures, level rows and billing codes; evaluations and goals; progress notes and prefill; aide service plan and the aide visit lock.
 7. **Admin app:** Overview, Clinicians and profiles, Patients and duplicate review, Completed notes, Invoices (payments and issues), Insurance billing, Locations, Settings, More. *Done 21 Oct 2026: Overview, Notifications, Clinicians, Patients with duplicate review and patient details, Appointments, Completed notes, Invoices (payments and issues), Insurance billing, Locations (list and Add location), Patient reviews and Settings. Still to come: clinician profiles (step 8) and the location profile (files, remove).*
 8. **People and paperwork:** clinician Profile, Contracts (both sides), service agreements, documents and files. *Done 21 Oct 2026, with the patient record PDF and a PDF font that prints every currency symbol. Not yet: moving clinicians when a location is removed (clinicians aren't linked to locations yet).*
-9. **Insight and patients:** Performance, Patient reviews (patient form and admin list). *Patient reviews done 21 Oct 2026.*
+9. **Insight and patients:** Performance, Patient reviews (patient form and admin list). *Done 21 Oct 2026: Performance (with a Last 180 days period) and missed visits with a reason; the admin Overview is complete with agreements to sign, deactivated accounts and Today across the practice.*
 
 ### Permissions
 

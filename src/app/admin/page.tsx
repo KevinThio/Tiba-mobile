@@ -1,31 +1,49 @@
-import { ChevronRight, CircleAlert, FileSignature, Landmark, LayoutDashboard, ReceiptText, Star, UserPlus, UsersRound, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, FilePen, FileSignature, Landmark, ReceiptText, Star, UserPlus, UserX, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { invoiceCounts, OVERDUE_DAYS, unbilledOverdue } from "@/lib/admin-billing";
 import { requireAdmin } from "@/lib/auth";
 import { unreadOfTypes } from "@/lib/notifications";
+import { agreementsToSign, deactivatedClinicians, oldestNewReview, visitsAroundToday } from "@/lib/overview";
 import { newReviewCount, pendingClinicianCount, possibleDuplicates } from "@/lib/practice";
+import { TodayVisits } from "./today-visits";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const DAY_MS = 86_400_000;
+const daysAgo = (d: Date) => Math.max(0, Math.floor((Date.now() - d.getTime()) / DAY_MS));
+const ago = (days: number) => (days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`);
+
+/** "In the last two weeks" for the new-reviews row, from when the oldest unread one arrived. */
+function reviewSpan(oldest: Date | null) {
+  if (!oldest) return "Only you can read them.";
+  const days = daysAgo(oldest);
+  if (days === 0) return "Today. Only you can read them.";
+  if (days < 7) return `In the last ${days + 1} days. Only you can read them.`;
+  const weeks = Math.ceil((days + 1) / 7);
+  return `In the last ${weeks === 2 ? "two" : weeks} weeks. Only you can read them.`;
+}
 
 type Attention = {
   href: string;
   icon: LucideIcon;
   title: string;
   detail: string;
-  badge?: { label: string; variant: "warning" | "info" };
+  badge?: { label: string; variant: "warning" | "info" | "neutral" };
 };
 
 export default async function AdminOverviewPage() {
   const { id, name, practiceName, practiceId } = await requireAdmin();
-  const [waiting, newReviews, duplicates, unbilled, invoiceTotals] = await Promise.all([
+  const [waiting, newReviews, duplicates, unbilled, invoiceTotals, toSign, deactivated, firstNewReview, around] = await Promise.all([
     pendingClinicianCount(practiceId),
     newReviewCount(practiceId),
     possibleDuplicates(practiceId),
     unbilledOverdue(practiceId),
     invoiceCounts(practiceId),
+    agreementsToSign(practiceId),
+    deactivatedClinicians(practiceId),
+    oldestNewReview(practiceId),
+    visitsAroundToday(practiceId),
   ]);
   const contractNews = await unreadOfTypes(id, ["contract_message", "contract_signed"]);
 
@@ -44,8 +62,17 @@ export default async function AdminOverviewPage() {
       href: "/admin/billing",
       icon: Landmark,
       title: `${unbilled.count === 1 ? "1 note" : `${unbilled.count} notes`} unbilled ${OVERDUE_DAYS}+ days`,
-      detail: unbilled.oldest ? `Oldest signed ${DATE.format(unbilled.oldest)}.` : "Bill them to insurance.",
+      detail: unbilled.oldest ? `Oldest signed ${DATE.format(unbilled.oldest)} · ${ago(daysAgo(unbilled.oldest))}` : "Bill them to insurance.",
       badge: { label: "Overdue", variant: "warning" },
+    });
+  }
+  for (const a of toSign) {
+    items.push({
+      href: `/admin/patients/${a.patientId}/agreement`,
+      icon: FilePen,
+      title: `Sign ${a.name.split(" ")[0]}'s service agreement`,
+      detail: a.signedAt ? `The client signed ${ago(daysAgo(a.signedAt))}. It needs the agency witness's signature.` : "It needs the agency witness's signature.",
+      badge: { label: "Sign", variant: "warning" },
     });
   }
   if (invoiceTotals.unseen > 0) {
@@ -83,12 +110,21 @@ export default async function AdminOverviewPage() {
       badge: { label: "Confirm", variant: "warning" },
     });
   }
+  for (const c of deactivated) {
+    items.push({
+      href: `/admin/clinicians/${c.id}`,
+      icon: UserX,
+      title: `${c.name}'s account is deactivated`,
+      detail: "They can't sign in. Their notes are kept.",
+      badge: { label: "Deactivated", variant: "neutral" },
+    });
+  }
   if (newReviews > 0) {
     items.push({
       href: "/admin/reviews",
       icon: Star,
       title: `${newReviews === 1 ? "1 new patient review" : `${newReviews} new patient reviews`}`,
-      detail: "Only you can read them.",
+      detail: reviewSpan(firstNewReview),
       badge: { label: "New", variant: "info" },
     });
   }
@@ -104,7 +140,7 @@ export default async function AdminOverviewPage() {
         {items.length > 0 ? (
           <ul className="grid grid-cols-1 rounded-lg border border-border-subtle bg-card shadow-sm">
             {items.map(({ href, icon: Icon, title, detail, badge }) => (
-              <li key={href} className="border-b border-border-subtle last:border-b-0">
+              <li key={title} className="border-b border-border-subtle last:border-b-0">
                 <Link
                   href={href}
                   className="flex items-center gap-4 px-4 py-4 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring sm:px-5"
@@ -129,10 +165,12 @@ export default async function AdminOverviewPage() {
         )}
       </section>
 
-      <EmptyState icon={LayoutDashboard} title="More of your overview is coming soon">
-        Notes waiting to be billed, agreements to sign, new invoices, possible duplicates and today&apos;s visits across
-        the practice will show here.
-      </EmptyState>
+      <section aria-labelledby="today-heading" className="grid gap-3">
+        <h2 id="today-heading" className="text-h2">
+          Today across the practice
+        </h2>
+        <TodayVisits visits={around.map((v) => ({ ...v, missed: Boolean(v.missed), startsAt: v.startsAt.toISOString() }))} />
+      </section>
     </div>
   );
 }
