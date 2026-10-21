@@ -14,7 +14,7 @@ export function PageHeader({
   actions,
 }: {
   title: React.ReactNode;
-  overline?: string;
+  overline?: React.ReactNode;
   description?: string;
   back?: { href: string; label: string };
   actions?: React.ReactNode;
