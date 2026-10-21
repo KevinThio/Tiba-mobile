@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { appointments, invoiceItems, notes, patients } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { parseFeeToMinor } from "@/lib/format";
+import { notesToDoCounts } from "@/lib/notes";
 
 export type AppointmentSummary = {
   id: string;
@@ -87,15 +88,7 @@ export async function listAppointments(range: { start: string; end: string }): P
  */
 export async function getNotesToDo(): Promise<{ needNote: number; drafts: number }> {
   const clinician = await requireClinician();
-  const [row] = await db
-    .select({
-      needNote: sql<number>`count(*) filter (where ${notes.id} is null and ${appointments.startsAt} + make_interval(mins => ${appointments.durationMinutes}) < now())::int`,
-      drafts: sql<number>`count(*) filter (where ${notes.id} is not null and ${notes.signedAt} is null)::int`,
-    })
-    .from(appointments)
-    .leftJoin(notes, eq(notes.appointmentId, appointments.id))
-    .where(eq(appointments.clinicianId, clinician.id));
-  return { needNote: row?.needNote ?? 0, drafts: row?.drafts ?? 0 };
+  return notesToDoCounts(clinician.id);
 }
 
 /** Typo-tolerant patient search. An empty query returns the most recently added patients. */
