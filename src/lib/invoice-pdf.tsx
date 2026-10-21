@@ -42,7 +42,10 @@ const s = StyleSheet.create({
 
 export const invoiceNumberLabel = (n: number) => String(n).padStart(4, "0");
 
-export async function loadInvoiceForPdf(invoiceId: string, clinicianId: string) {
+/** Whose invoices may be read: one clinician's own, or (for the admin) the whole practice's. */
+export type InvoiceScope = { clinicianId: string } | { practiceId: string };
+
+export async function loadInvoiceForPdf(invoiceId: string, scope: InvoiceScope) {
   const [head] = await db
     .select({
       number: invoices.number,
@@ -64,7 +67,12 @@ export async function loadInvoiceForPdf(invoiceId: string, clinicianId: string) 
     .innerJoin(clinicians, eq(clinicians.id, invoices.clinicianId))
     .innerJoin(practices, eq(practices.id, clinicians.practiceId))
     .innerJoin(patients, eq(patients.id, invoices.patientId))
-    .where(and(eq(invoices.id, invoiceId), eq(invoices.clinicianId, clinicianId)));
+    .where(
+      and(
+        eq(invoices.id, invoiceId),
+        "clinicianId" in scope ? eq(invoices.clinicianId, scope.clinicianId) : eq(clinicians.practiceId, scope.practiceId),
+      ),
+    );
   if (!head) return null;
   const items = await db
     .select({
@@ -160,8 +168,8 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
   );
 }
 
-export async function renderInvoicePdf(invoiceId: string, clinicianId: string) {
-  const data = await loadInvoiceForPdf(invoiceId, clinicianId);
+export async function renderInvoicePdf(invoiceId: string, scope: InvoiceScope) {
+  const data = await loadInvoiceForPdf(invoiceId, scope);
   if (!data) return null;
   const pdf = await renderToBuffer(<InvoiceDocument data={data} />);
   return { pdf, data };

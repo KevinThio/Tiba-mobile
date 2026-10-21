@@ -373,6 +373,15 @@ export const invoices = pgTable(
     currency: text("currency").notNull().default("USD"),
     // Spec v2 "Payment due": the invoice date (due on receipt), or 14 or 30 days later.
     dueDate: date("due_date"),
+    // Admin side (spec v2 section 5b): Unpaid → Paid, or Issue (flagged) → back to Unpaid or Paid.
+    status: text("status", { enum: ["unpaid", "paid", "issue"] }).notNull().default("unpaid"),
+    // When the admin first opened it ("New" until then, or Mark all as seen).
+    seenAt: timestamp("seen_at", { withTimezone: true }),
+    paidOn: date("paid_on"),
+    paidMethod: text("paid_method"),
+    issueCategory: text("issue_category"),
+    issueComment: text("issue_comment"),
+    issueFlaggedAt: timestamp("issue_flagged_at", { withTimezone: true }),
     // Set when the invoice PDF was emailed.
     sentTo: text("sent_to"),
     sentAt: timestamp("sent_at", { withTimezone: true }),
@@ -380,6 +389,7 @@ export const invoices = pgTable(
   },
   (t) => [
     unique("invoices_clinician_number_unique").on(t.clinicianId, t.number),
+    check("invoices_status_check", sql`${t.status} in ('unpaid', 'paid', 'issue')`),
     index("invoices_patient_id_idx").on(t.patientId),
   ],
 );
@@ -485,3 +495,30 @@ export const notifications = pgTable(
   },
   (t) => [index("notifications_recipient_idx").on(t.recipientId, t.readAt)],
 );
+
+// An invoice's history (spec v2: sent, issue flagged, issue resolved, marked paid).
+export const invoiceEvents = pgTable(
+  "invoice_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["sent", "issue_flagged", "issue_resolved", "paid"] }).notNull(),
+    // e.g. "Wrong amount: the fee should be $75" or "Bank transfer, paid 20 Oct 2026".
+    detail: text("detail"),
+    actorId: text("actor_id").references(() => clinicians.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("invoice_events_invoice_idx").on(t.invoiceId)],
+);
+
+// "Billed to insurance" for a signed note (spec v2 Completed notes and Insurance billing). Kept
+// apart from notes because signed notes are locked (drizzle/0001).
+export const noteBillings = pgTable("note_billings", {
+  noteId: uuid("note_id")
+    .primaryKey()
+    .references(() => notes.id, { onDelete: "restrict" }),
+  billedAt: timestamp("billed_at", { withTimezone: true }).notNull().defaultNow(),
+  billedById: text("billed_by_id").references(() => clinicians.id, { onDelete: "set null" }),
+});

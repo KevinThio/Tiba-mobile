@@ -43,7 +43,10 @@ const s = StyleSheet.create({
   footer: { position: "absolute", left: 48, right: 48, bottom: 32, fontSize: 8, color: MUTED },
 });
 
-export async function loadNoteForPdf(appointmentId: string, clinicianId: string) {
+/** Whose PDFs may be read: one clinician's own, or (for the admin) the whole practice's. */
+export type PdfScope = { clinicianId: string } | { practiceId: string };
+
+export async function loadNoteForPdf(appointmentId: string, scope: PdfScope) {
   const [note] = await db
     .select({
       noteId: notes.id,
@@ -74,7 +77,13 @@ export async function loadNoteForPdf(appointmentId: string, clinicianId: string)
     .innerJoin(clinicians, eq(clinicians.id, appointments.clinicianId))
     .innerJoin(practices, eq(practices.id, clinicians.practiceId))
     .leftJoin(diagnosisCodes, eq(diagnosisCodes.code, notes.dxCode))
-    .where(and(eq(notes.appointmentId, appointmentId), eq(appointments.clinicianId, clinicianId), isNotNull(notes.signedAt)));
+    .where(
+      and(
+        eq(notes.appointmentId, appointmentId),
+        "clinicianId" in scope ? eq(appointments.clinicianId, scope.clinicianId) : eq(clinicians.practiceId, scope.practiceId),
+        isNotNull(notes.signedAt),
+      ),
+    );
   if (!note?.signedAt) return null;
   const addenda = await db
     .select({ body: noteAddenda.body, createdAt: noteAddenda.createdAt })
@@ -216,8 +225,8 @@ function NoteDocument({ data, timeZone }: { data: NoteData; timeZone: string }) 
 }
 
 /** The PDF, with times in `timeZone` (the viewer's), else the clinician's saved zone, else UTC. */
-export async function renderNotePdf(appointmentId: string, clinicianId: string, timeZone?: string | null) {
-  const data = await loadNoteForPdf(appointmentId, clinicianId);
+export async function renderNotePdf(appointmentId: string, scope: PdfScope, timeZone?: string | null) {
+  const data = await loadNoteForPdf(appointmentId, scope);
   if (!data) return null;
   const zone = [timeZone, data.savedTimeZone].find((z): z is string => !!z && isValidTimeZone(z)) ?? "UTC";
   const pdf = await renderToBuffer(<NoteDocument data={data} timeZone={zone} />);

@@ -270,7 +270,12 @@ export function InvoicesView({ country }: { country: string }) {
               <li key={inv.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card p-4">
                 <div className="w-16 shrink-0 font-heading text-lg text-primary">{label(inv.number)}</div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{inv.patientName}</p>
+                  <p className="flex flex-wrap items-center gap-2">
+                    <span className="truncate font-medium">{inv.patientName}</span>
+                    {inv.status === "paid" && <Badge variant="success">Paid</Badge>}
+                    {inv.status === "issue" && <Badge variant="danger">Issue</Badge>}
+                  </p>
+                  {inv.issue && <p className="text-sm break-words text-destructive">{inv.issue}</p>}
                   <p className="text-sm text-muted-foreground">
                     {formatDayShort(new Date(inv.createdAt))} · {inv.visits} visit{inv.visits === 1 ? "" : "s"} ·{" "}
                     <span className="tabular-nums">{money(inv.totalMinor, inv.currency)}</span>

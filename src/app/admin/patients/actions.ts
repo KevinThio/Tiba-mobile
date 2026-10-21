@@ -234,3 +234,42 @@ export async function mergeIntoExisting(input: { patientId: string }): Promise<R
   revalidatePath("/", "layout");
   return { ok: true, name: pair.existing.name };
 }
+
+const careInput = z.object({
+  patientId: z.uuid(),
+  clinicianId: z.string().min(1, "Pick the clinician who will see them."),
+  insurer: optional,
+  referralDate: isoDate.optional().or(z.literal("")).transform((v) => v || null),
+  startOfCare: isoDate.optional().or(z.literal("")).transform((v) => v || null),
+});
+
+/** Patient details → Care: the assigned clinician, insurer, date of referral and start of care. */
+export async function updatePatientCare(input: z.input<typeof careInput>): Promise<{ ok: true } | { ok: false; message: string }> {
+  const admin = await requireAdmin();
+  const parsed = careInput.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Please check the details." };
+  const v = parsed.data;
+  if (v.startOfCare && v.referralDate && v.startOfCare < v.referralDate) {
+    return { ok: false, message: "Start of care can't be before the date of referral." };
+  }
+  const [clinician] = await db
+    .select({ id: clinicians.id })
+    .from(clinicians)
+    .where(
+      and(
+        eq(clinicians.id, v.clinicianId),
+        eq(clinicians.practiceId, admin.practiceId),
+        eq(clinicians.role, "clinician"),
+        eq(clinicians.status, "active"),
+      ),
+    );
+  if (!clinician) return { ok: false, message: "Pick an active clinician from your practice." };
+  const updated = await db
+    .update(patients)
+    .set({ clinicianId: v.clinicianId, insurer: v.insurer, referralDate: v.referralDate, startOfCare: v.startOfCare, updatedAt: new Date() })
+    .where(and(eq(patients.id, v.patientId), eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")))
+    .returning({ id: patients.id });
+  if (!updated.length) return { ok: false, message: "We couldn't find that patient. Please refresh the page." };
+  revalidatePath("/admin/patients");
+  return { ok: true };
+}

@@ -133,7 +133,12 @@ function PatientRow({ patient: p }: { patient: Row }) {
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="truncate font-semibold">{p.fullName}</span>
+          <Link
+            href={`/admin/patients/${p.id}`}
+            className="truncate rounded-xs font-semibold outline-none hover:text-primary hover:underline focus-visible:ring-3 focus-visible:ring-ring"
+          >
+            {p.fullName}
+          </Link>
           {p.possibleDuplicate && <Badge variant="warning">Possible duplicate</Badge>}
         </p>
         <p className="truncate text-small text-muted-foreground">

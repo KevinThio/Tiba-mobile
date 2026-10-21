@@ -4,7 +4,7 @@ import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { appointments, clinicians, invoiceItems, invoices, notes, patients } from "@/db/schema";
+import { appointments, clinicians, invoiceEvents, invoiceItems, invoices, notes, patients } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { EmailNotConfiguredError, renderEmail, sendEmail } from "@/lib/email";
 import { formatMoney } from "@/lib/countries";
@@ -78,6 +78,8 @@ export type InvoiceSummary = {
   totalMinor: number;
   currency: string;
   dueDate: string | null;
+  status: "unpaid" | "paid" | "issue";
+  issue: string | null;
   visits: number;
   sentTo: string | null;
   sentAt: string | null;
@@ -94,6 +96,8 @@ export async function listInvoices(): Promise<InvoiceSummary[]> {
       totalMinor: invoices.totalMinor,
       currency: invoices.currency,
       dueDate: invoices.dueDate,
+      status: invoices.status,
+      issue: sql<string | null>`case when ${invoices.status} = 'issue' then ${invoices.issueCategory} || ': ' || ${invoices.issueComment} end`,
       sentTo: invoices.sentTo,
       sentAt: invoices.sentAt,
       visits: db.$count(invoiceItems, eq(invoiceItems.invoiceId, invoices.id)),
@@ -178,6 +182,7 @@ export async function createInvoice(input: z.input<typeof createSchema>): Promis
       })
       .returning({ id: invoices.id });
     await tx.insert(invoiceItems).values(visits.map((v) => ({ invoiceId: invoice.id, appointmentId: v.id, feeMinor: v.feeMinor })));
+    await tx.insert(invoiceEvents).values({ invoiceId: invoice.id, kind: "sent", actorId: clinician.id });
     if (email) await tx.update(patients).set({ invoiceEmail: email }).where(eq(patients.id, visits[0].patientId));
 
     return { ok: true as const, invoiceId: invoice.id, number, totalMinor, currency: visits[0].currency, patientId: visits[0].patientId };
@@ -211,7 +216,7 @@ export async function emailInvoice(input: { invoiceId: string; email: string }):
 
 async function sendInvoiceEmail(invoiceId: string, clinicianId: string, to: string): Promise<EmailOutcome> {
   try {
-    const rendered = await renderInvoicePdf(invoiceId, clinicianId);
+    const rendered = await renderInvoicePdf(invoiceId, { clinicianId });
     if (!rendered) return { emailed: false, emailError: "We couldn't find that invoice." };
     const { pdf, data } = rendered;
     const label = invoiceNumberLabel(data.number);

@@ -1,10 +1,13 @@
-import { ChevronRight, LayoutDashboard, Star, UserPlus, UsersRound, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, Landmark, LayoutDashboard, ReceiptText, Star, UserPlus, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
+import { invoiceCounts, OVERDUE_DAYS, unbilledOverdue } from "@/lib/admin-billing";
 import { requireAdmin } from "@/lib/auth";
 import { newReviewCount, pendingClinicianCount, possibleDuplicates } from "@/lib/practice";
+
+const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 type Attention = {
   href: string;
@@ -16,10 +19,12 @@ type Attention = {
 
 export default async function AdminOverviewPage() {
   const { name, practiceName, practiceId } = await requireAdmin();
-  const [waiting, newReviews, duplicates] = await Promise.all([
+  const [waiting, newReviews, duplicates, unbilled, invoiceTotals] = await Promise.all([
     pendingClinicianCount(practiceId),
     newReviewCount(practiceId),
     possibleDuplicates(practiceId),
+    unbilledOverdue(practiceId),
+    invoiceCounts(practiceId),
   ]);
 
   const items: Attention[] = [];
@@ -30,6 +35,32 @@ export default async function AdminOverviewPage() {
       title: `${waiting === 1 ? "1 clinician is" : `${waiting} clinicians are`} waiting to be verified`,
       detail: "They signed up with your practice name and can't see patients until you activate them.",
       badge: { label: "Verify", variant: "warning" },
+    });
+  }
+  if (unbilled.count > 0) {
+    items.push({
+      href: "/admin/billing",
+      icon: Landmark,
+      title: `${unbilled.count === 1 ? "1 note" : `${unbilled.count} notes`} unbilled ${OVERDUE_DAYS}+ days`,
+      detail: unbilled.oldest ? `Oldest signed ${DATE.format(unbilled.oldest)}.` : "Bill them to insurance.",
+      badge: { label: "Overdue", variant: "warning" },
+    });
+  }
+  if (invoiceTotals.unseen > 0) {
+    items.push({
+      href: "/admin/invoices",
+      icon: ReceiptText,
+      title: `${invoiceTotals.unseen === 1 ? "1 new invoice" : `${invoiceTotals.unseen} new invoices`} from clinicians`,
+      detail: "Mark paid, or flag an issue.",
+      badge: { label: "New", variant: "info" },
+    });
+  }
+  if (invoiceTotals.issues > 0) {
+    items.push({
+      href: "/admin/invoices",
+      icon: CircleAlert,
+      title: `${invoiceTotals.issues === 1 ? "1 invoice has" : `${invoiceTotals.issues} invoices have`} an issue`,
+      detail: "Waiting for the clinician to fix.",
     });
   }
   for (const d of duplicates) {

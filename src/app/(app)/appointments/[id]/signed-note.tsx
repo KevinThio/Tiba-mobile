@@ -181,7 +181,7 @@ export function SignedNote(p: Props) {
   );
 }
 
-function SignatureTile({ label, name, image, signedAt }: { label: string; name: string; image: string | null; signedAt: string }) {
+export function SignatureTile({ label, name, image, signedAt }: { label: string; name: string; image: string | null; signedAt: string }) {
   return (
     <figure className="grid gap-2 rounded-md border border-border-subtle p-4">
       <figcaption className="text-overline font-semibold text-muted-foreground uppercase">{label}</figcaption>
