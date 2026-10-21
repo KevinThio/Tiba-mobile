@@ -278,10 +278,15 @@ export const appointments = pgTable(
     // signed note; locked once the note is signed (trigger in drizzle/0003).
     timeIn: timestamp("time_in", { withTimezone: true }),
     timeOut: timestamp("time_out", { withTimezone: true }),
+    // Spec v2: a visit can be marked missed (counted in Performance), with the reason. A missed
+    // visit has no note and can't be invoiced (trigger in drizzle/0028).
+    missedAt: timestamp("missed_at", { withTimezone: true }),
+    missedReason: text("missed_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    check("appointments_missed_has_reason", sql`(${t.missedAt} is null) = (${t.missedReason} is null)`),
     check("appointments_time_out_after_time_in", sql`${t.timeOut} is null or ${t.timeIn} is null or ${t.timeOut} > ${t.timeIn}`),
     index("appointments_clinician_starts_at_idx").on(t.clinicianId, t.startsAt),
     index("appointments_patient_id_idx").on(t.patientId),

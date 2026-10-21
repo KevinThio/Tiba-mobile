@@ -1,6 +1,6 @@
 "use server";
 
-import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
@@ -58,7 +58,7 @@ export async function listVisitsForInvoicing(period: Period): Promise<Invoiceabl
     .leftJoin(notes, eq(notes.appointmentId, appointments.id))
     .leftJoin(invoiceItems, eq(invoiceItems.appointmentId, appointments.id))
     .leftJoin(invoices, eq(invoices.id, invoiceItems.invoiceId))
-    .where(and(eq(appointments.clinicianId, clinician.id), gte(appointments.startsAt, since), lte(appointments.startsAt, now)))
+    .where(and(eq(appointments.clinicianId, clinician.id), gte(appointments.startsAt, since), lte(appointments.startsAt, now), isNull(appointments.missedAt)))
     .orderBy(desc(appointments.startsAt));
 
   return rows.map((r) => ({

@@ -17,9 +17,10 @@ import { careTeam, patientRecord, type VisitStatus } from "@/lib/patients";
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const MONTH = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
 
-const STATUS_BADGE: Record<VisitStatus | "needs-plan", { label: string; variant: "outline" | "warning" | "neutral" | "success" }> = {
+const STATUS_BADGE: Record<VisitStatus | "needs-plan", { label: string; variant: "outline" | "warning" | "neutral" | "success" | "danger" }> = {
   upcoming: { label: "Upcoming", variant: "outline" },
   "needs-note": { label: "Needs note", variant: "warning" },
+  missed: { label: "Missed", variant: "danger" },
   "needs-plan": { label: "Needs plan", variant: "warning" },
   draft: { label: "Draft", variant: "neutral" },
   signed: { label: "Signed", variant: "success" },

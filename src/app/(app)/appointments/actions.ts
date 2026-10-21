@@ -21,6 +21,8 @@ export type AppointmentSummary = {
   /** A note was started but not signed yet. */
   draft: boolean;
   invoiced: boolean;
+  /** Marked missed (spec v2): no note needed. */
+  missed: boolean;
   timeIn: string | null; // ISO
   timeOut: string | null; // ISO
 };
@@ -38,6 +40,7 @@ const summaryColumns = {
   signed: isNotNull(notes.signedAt),
   draft: sql<boolean>`${notes.id} is not null and ${notes.signedAt} is null`,
   invoiced: sql<boolean>`exists (select 1 from ${invoiceItems} where ${invoiceItems.appointmentId} = ${appointments.id})`,
+  missed: isNotNull(appointments.missedAt),
   timeIn: appointments.timeIn,
   timeOut: appointments.timeOut,
 };
@@ -47,9 +50,10 @@ type SummaryRow = {
   signed: unknown;
   draft: unknown;
   invoiced: unknown;
+  missed: unknown;
   timeIn: Date | null;
   timeOut: Date | null;
-} & Omit<AppointmentSummary, "startsAt" | "signed" | "draft" | "invoiced" | "timeIn" | "timeOut">;
+} & Omit<AppointmentSummary, "startsAt" | "signed" | "draft" | "invoiced" | "missed" | "timeIn" | "timeOut">;
 
 function toSummary(row: SummaryRow): AppointmentSummary {
   return {
@@ -58,6 +62,7 @@ function toSummary(row: SummaryRow): AppointmentSummary {
     signed: Boolean(row.signed),
     draft: Boolean(row.draft),
     invoiced: Boolean(row.invoiced),
+    missed: Boolean(row.missed),
     timeIn: row.timeIn?.toISOString() ?? null,
     timeOut: row.timeOut?.toISOString() ?? null,
   };
@@ -223,6 +228,7 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
         signed: false,
         draft: false,
         invoiced: false,
+        missed: false,
         timeIn: null,
         timeOut: null,
       },

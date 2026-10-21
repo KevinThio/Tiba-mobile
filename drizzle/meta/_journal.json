@@ -190,6 +190,20 @@
       "when": 1792600607748,
       "tag": "0026_lock_agreement_details",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792603366611,
+      "tag": "0027_missed_visits",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792603372623,
+      "tag": "0028_lock_missed_visits",
+      "breakpoints": true
     }
   ]
 }

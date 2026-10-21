@@ -26,6 +26,7 @@ import { canWriteCare, caresDescription, disciplineLabel, kindsForDiscipline } f
 import { draftPlanFor, goalsFromEvaluation, hasSignedPlan } from "@/lib/note-context";
 import { practiceLogoUrl } from "@/lib/practice-logo";
 import { AmendmentBanner } from "./amend";
+import { MarkMissed, MissedVisit } from "./missed";
 import { AideLock, NoteEditor } from "./note-editor";
 import { SignedNote } from "./signed-note";
 import { VisitTimes } from "./visit-times";
@@ -52,6 +53,8 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       practiceUpdatedAt: practices.updatedAt,
       timeIn: appointments.timeIn,
       timeOut: appointments.timeOut,
+      missedAt: appointments.missedAt,
+      missedReason: appointments.missedReason,
       noteId: notes.id,
       noteKind: notes.kind,
       noteCare: notes.care,
@@ -118,6 +121,15 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       />
     );
   }
+  if (visit.missedAt) {
+    return (
+      <div className="grid grid-cols-1 gap-6">
+        <PageHeader back={{ href: "/appointments", label: "Appointments" }} overline={CARE_LABEL[care]} title={visit.patientName} />
+        <MissedVisit appointmentId={id} reason={visit.missedReason ?? ""} missedAt={visit.missedAt.toISOString()} />
+      </div>
+    );
+  }
+
   // Spec v2: each clinician writes the notes of their discipline (set in Settings).
   const { discipline } = await clinicianSettings(clinician.id);
   const kinds = kindsForDiscipline(discipline, kindsFor(care, visit.servicesOrdered));
@@ -140,18 +152,22 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
           {kind !== "progress" && ` (${KIND_LABEL[kind].toLowerCase()})`}. Your discipline is {disciplineLabel(discipline)}, so
           you write {caresDescription(discipline)}. If your discipline is wrong, change it in Settings.
         </EmptyState>
+        {!visit.noteId && hasStarted(visit.startsAt) && <MarkMissed appointmentId={id} />}
       </div>
     );
   }
 
   const firstName = visit.patientName.split(" ")[0];
   const visitTimes = (
-    <VisitTimes
-      appointmentId={id}
-      startsAt={visit.startsAt.toISOString()}
-      initial={{ timeIn: visit.timeIn?.toISOString() ?? null, timeOut: visit.timeOut?.toISOString() ?? null }}
-      locked={false}
-    />
+    <>
+      <VisitTimes
+        appointmentId={id}
+        startsAt={visit.startsAt.toISOString()}
+        initial={{ timeIn: visit.timeIn?.toISOString() ?? null, timeOut: visit.timeOut?.toISOString() ?? null }}
+        locked={false}
+      />
+      {!visit.noteId && hasStarted(visit.startsAt) && <MarkMissed appointmentId={id} />}
+    </>
   );
 
   // An aide visit can't be documented until the patient has a signed aide service plan.
@@ -161,6 +177,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       <div className="grid grid-cols-1 gap-6">
         <PageHeader back={{ href: "/appointments", label: "Appointments" }} overline="Aide visit" title={visit.patientName} />
         <AideLock patientFirstName={firstName} planHref={draftPlan ? `/appointments/${draftPlan}` : null} />
+        {!visit.noteId && hasStarted(visit.startsAt) && <MarkMissed appointmentId={id} />}
       </div>
     );
   }
@@ -193,6 +210,11 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       }
     />
   );
+}
+
+/** Whether the visit was due by now (only then can it be marked missed). */
+function hasStarted(startsAt: Date) {
+  return startsAt.getTime() <= Date.now();
 }
 
 /** When the version being amended was signed. */

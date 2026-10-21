@@ -24,21 +24,23 @@ type Props = {
   careTypes: { typeOfCare: string; feeMinor: number }[];
 };
 
-type Status = "upcoming" | "needs-note" | "draft" | "signed" | "invoiced";
+type Status = "upcoming" | "needs-note" | "draft" | "signed" | "invoiced" | "missed";
 
-const STATUS_BADGE: Record<Status, { label: string; variant: "outline" | "warning" | "neutral" | "success" }> = {
+const STATUS_BADGE: Record<Status, { label: string; variant: "outline" | "warning" | "neutral" | "success" | "danger" }> = {
   upcoming: { label: "Upcoming", variant: "outline" },
   "needs-note": { label: "Needs note", variant: "warning" },
   draft: { label: "Draft", variant: "neutral" },
   signed: { label: "Signed", variant: "success" },
   invoiced: { label: "Invoiced", variant: "success" },
+  missed: { label: "Missed", variant: "danger" },
 };
 
 const WEEKDAY = new Intl.DateTimeFormat("en-GB", { weekday: "short" });
 const MONTH_YEAR = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
 
-/** Visit status from the spec: Upcoming → Needs note → Draft → Signed → Invoiced. */
+/** Visit status from the spec: Upcoming → Needs note → Draft → Signed → Invoiced, or Missed. */
 function statusOf(a: AppointmentSummary, now: number): Status {
+  if (a.missed) return "missed";
   if (a.invoiced) return "invoiced";
   if (a.signed) return "signed";
   if (a.draft) return "draft";

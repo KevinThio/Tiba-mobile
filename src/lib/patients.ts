@@ -29,7 +29,7 @@ export async function practicePatients(practiceId: string, clinicianId: string) 
     .orderBy(asc(patients.status), asc(patients.fullName));
 }
 
-export type VisitStatus = "upcoming" | "needs-note" | "draft" | "signed" | "invoiced";
+export type VisitStatus = "upcoming" | "needs-note" | "draft" | "signed" | "invoiced" | "missed";
 
 /** One practice patient for the record screen, or null if they're in another practice. */
 export async function patientRecord(patientId: string, practiceId: string, clinicianId: string) {
@@ -69,6 +69,7 @@ export async function patientRecord(patientId: string, practiceId: string, clini
         typeOfCare: appointments.typeOfCare,
         noteId: notes.id,
         signedAt: notes.signedAt,
+        missedAt: appointments.missedAt,
         invoiced: sql<boolean>`exists (select 1 from invoice_items i where i.appointment_id = appointments.id)`,
       })
       .from(appointments)
@@ -80,7 +81,9 @@ export async function patientRecord(patientId: string, practiceId: string, clini
   const now = Date.now();
   const withStatus = visits.map((v) => {
     const end = v.startsAt.getTime() + v.durationMinutes * 60_000;
-    const status: VisitStatus = v.invoiced
+    const status: VisitStatus = v.missedAt
+      ? "missed"
+      : v.invoiced
       ? "invoiced"
       : v.signedAt
         ? "signed"

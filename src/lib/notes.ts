@@ -4,8 +4,9 @@ import { db } from "@/db";
 import { appointments, notes, patients } from "@/db/schema";
 
 // Notes to do (spec v2): finished visits with no note yet, and notes started but not signed.
+// Missed visits never need a note.
 
-const ended = sql`${appointments.startsAt} + make_interval(mins => ${appointments.durationMinutes}) < now()`;
+const ended = sql`${appointments.startsAt} + make_interval(mins => ${appointments.durationMinutes}) < now() and ${appointments.missedAt} is null`;
 
 /** Counts for the menu badge, the Appointments reminder and the Notes to do header. */
 export async function notesToDoCounts(clinicianId: string) {
