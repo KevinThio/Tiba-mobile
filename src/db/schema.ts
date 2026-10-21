@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -187,6 +188,10 @@ export const patients = pgTable(
     status: text("status", { enum: ["active", "discharged"] }).notNull().default("active"),
     // Who added the record (an admin or a clinician); kept if that account goes.
     addedById: text("added_by_id").references(() => clinicians.id, { onDelete: "set null" }),
+    // Possible duplicate (spec v2 section 5b): a clinician added this patient although the
+    // name and date of birth match another practice patient. The admin confirms or merges.
+    duplicateOfId: uuid("duplicate_of_id").references((): AnyPgColumn => patients.id, { onDelete: "set null" }),
+    duplicateFlaggedAt: timestamp("duplicate_flagged_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

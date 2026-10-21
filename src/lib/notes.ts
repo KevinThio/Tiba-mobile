@@ -44,7 +44,12 @@ export function draftNotes(clinicianId: string) {
       startsAt: appointments.startsAt,
       typeOfCare: appointments.typeOfCare,
       patientName: patients.fullName,
+      patientId: patients.id,
       editedAt: notes.updatedAt,
+      kind: notes.kind,
+      care: notes.care,
+      fields: notes.fields,
+      amending: sql<boolean>`${notes.version} > 1`,
     })
     .from(notes)
     .innerJoin(appointments, eq(appointments.id, notes.appointmentId))

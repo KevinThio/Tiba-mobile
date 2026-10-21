@@ -1,11 +1,12 @@
 "use server";
 
-import { and, asc, eq, ilike, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, ne, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { clinicians, diagnosisCodes, patientDiagnoses, patients } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
+import { findDuplicatePatient } from "@/lib/patient-duplicates";
 import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
 
 export type DiagnosisOption = { code: string; description: string };
@@ -58,11 +59,6 @@ export type AddPatientResult =
   | { ok: false; message: string }
   | { ok: false; duplicate: { name: string; dateOfBirth: string } };
 
-// Same normalising as practice names (src/lib/practice-name.ts), done in SQL.
-const nameKey = (column: typeof patients.fullName) =>
-  sql`trim(regexp_replace(lower(${column}), '[^a-z0-9]+', ' ', 'g'))`;
-const normalise = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-
 /**
  * Adds a patient to the practice for the chosen clinician (spec v2 Add patient, admin).
  * The same name and date of birth as an existing practice patient returns a possible
@@ -100,18 +96,8 @@ export async function addPatient(input: AddPatientInput): Promise<AddPatientResu
   }
 
   if (!v.confirmedNotDuplicate) {
-    const [match] = await db
-      .select({ name: patients.fullName, dateOfBirth: patients.dateOfBirth })
-      .from(patients)
-      .where(
-        and(
-          eq(patients.practiceId, admin.practiceId),
-          eq(patients.dateOfBirth, v.dateOfBirth),
-          sql`${nameKey(patients.fullName)} = ${normalise(v.fullName)}`,
-        ),
-      )
-      .limit(1);
-    if (match) return { ok: false, duplicate: match };
+    const match = await findDuplicatePatient(admin.practiceId, v.fullName, v.dateOfBirth);
+    if (match) return { ok: false, duplicate: { name: match.name, dateOfBirth: match.dateOfBirth } };
   }
 
   await db.transaction(async (tx) => {

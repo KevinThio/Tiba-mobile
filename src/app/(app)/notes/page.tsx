@@ -7,6 +7,8 @@ import { EditedAt, RelativeDay } from "@/components/relative-day";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireClinician } from "@/lib/auth";
+import { goalsFromEvaluation } from "@/lib/note-context";
+import { countedFields, getTemplate, missingFields, type Care } from "@/lib/note-templates";
 import { draftNotes, visitsNeedingNotes } from "@/lib/notes";
 
 /**
@@ -17,6 +19,7 @@ export default async function NotesPage() {
   const clinician = await requireClinician();
   const [needNote, drafts] = await Promise.all([visitsNeedingNotes(clinician.id), draftNotes(clinician.id)]);
   const total = needNote.length + drafts.length;
+  const progress = await draftProgress(drafts, clinician.practiceId);
 
   return (
     <div className="grid grid-cols-1 gap-8">
@@ -59,7 +62,7 @@ export default async function NotesPage() {
 
           {drafts.length > 0 && (
             <Section id="drafts" title={`Drafts (${drafts.length})`} help="Started but not signed. Saved as you type.">
-              {drafts.map((d) => (
+              {drafts.map((d, i) => (
                 <li key={d.appointmentId} className="border-b border-border-subtle last:border-b-0">
                   <Link
                     href={`/appointments/${d.appointmentId}`}
@@ -69,11 +72,17 @@ export default async function NotesPage() {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold">{d.patientName}</span>
                       <span className="line-clamp-2 block text-small text-muted-foreground sm:line-clamp-1">
+                        {d.amending && "Amendment · "}
                         <RelativeDay iso={d.startsAt.toISOString()} /> · {d.typeOfCare} · <EditedAt iso={d.editedAt.toISOString()} />
                       </span>
                     </span>
-                    {/* Becomes "3 of 6" or "Ready to sign" once notes have sections. */}
-                    <Badge variant="neutral">Draft</Badge>
+                    {progress[i].done === progress[i].total ? (
+                      <Badge variant="success">Ready to sign</Badge>
+                    ) : (
+                      <Badge variant="neutral" aria-label={`${progress[i].done} of ${progress[i].total} sections done`}>
+                        {progress[i].done} of {progress[i].total}
+                      </Badge>
+                    )}
                     <ChevronRight
                       className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                       aria-hidden
@@ -86,6 +95,30 @@ export default async function NotesPage() {
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Sections done for each draft, counted the same way as the editor's progress bar. Goal progress
+ * only counts when the patient has a signed evaluation, so look those up once per patient and care.
+ */
+async function draftProgress(drafts: Awaited<ReturnType<typeof draftNotes>>, practiceId: string) {
+  const goalCounts = new Map<string, Promise<number>>();
+  const goalCount = (patientId: string, care: Care) => {
+    const key = `${patientId}:${care}`;
+    if (!goalCounts.has(key)) {
+      goalCounts.set(key, goalsFromEvaluation(patientId, care, practiceId).then((e) => e?.goals.length ?? 0));
+    }
+    return goalCounts.get(key)!;
+  };
+  return Promise.all(
+    drafts.map(async (d) => {
+      const care = d.care as Care;
+      const template = getTemplate(d.kind, care);
+      const goals = await goalCount(d.patientId, care);
+      const total = countedFields(template, goals).length;
+      return { total, done: total - missingFields(template, d.fields ?? {}, goals).length };
+    }),
   );
 }
 
