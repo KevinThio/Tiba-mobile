@@ -52,7 +52,8 @@ export async function tomorrowsVisits(clinicianId: string, timeZone: string) {
 }
 
 /** Patients appear as "Amina W." in emails: enough to recognise, less exposed if forwarded. */
-function shortName(fullName: string) {
+/** "Amina Wanjiru" → "Amina W.": the most patient detail reminder emails carry. */
+export function shortName(fullName: string) {
   const [first, ...rest] = fullName.trim().split(/\s+/);
   const last = rest.at(-1);
   return last ? `${first} ${last[0]}.` : first;

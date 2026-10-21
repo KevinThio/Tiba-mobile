@@ -5,10 +5,12 @@ import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { completedNotes, OVERDUE_DAYS } from "@/lib/admin-billing";
 import { requireAdmin } from "@/lib/auth";
+import { lastBillingReminder } from "@/lib/billing-reminders";
 import { formatMoney } from "@/lib/countries";
 import { practiceBilling } from "@/lib/practice";
 import { cn } from "@/lib/utils";
 import { MarkBilledButton } from "../notes/mark-billed-button";
+import { SendReminderButton } from "./send-reminder-button";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 const DAY = 86_400_000;
@@ -21,7 +23,11 @@ const daysSince = (at: Date) => Math.floor((Date.now() - at.getTime()) / DAY);
  */
 export default async function InsuranceBillingPage() {
   const admin = await requireAdmin();
-  const [rows, billing] = await Promise.all([completedNotes(admin.practiceId), practiceBilling(admin.practiceId)]);
+  const [rows, billing, lastReminder] = await Promise.all([
+    completedNotes(admin.practiceId),
+    practiceBilling(admin.practiceId),
+    lastBillingReminder(admin.practiceId),
+  ]);
   const oldestFirst = [...rows].reverse();
   const waiting = oldestFirst.filter((r) => !r.billedAt).map((r) => ({ ...r, days: daysSince(r.signedAt!) }));
   const billed = oldestFirst.filter((r) => r.billedAt);
@@ -29,7 +35,16 @@ export default async function InsuranceBillingPage() {
 
   return (
     <div className="grid grid-cols-1 gap-6">
-      <PageHeader overline="Notes billed to insurance" title="Insurance billing" />
+      <PageHeader
+        overline="Notes billed to insurance"
+        title="Insurance billing"
+        description={
+          lastReminder
+            ? `Send reminder emails you the notes waiting to be billed. Last sent ${DATE.format(lastReminder.at)} to ${lastReminder.to}.`
+            : "Send reminder emails you the notes waiting to be billed, oldest first."
+        }
+        actions={<SendReminderButton disabled={waiting.length === 0} />}
+      />
 
       {late > 0 && (
         <div role="status" className="flex gap-3 rounded-md bg-danger px-4 py-3.5 text-danger-foreground">

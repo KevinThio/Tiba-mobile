@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CheckCheck, ChevronRight, CircleAlert, FileSignature, ReceiptText, Star, UsersRound, type LucideIcon } from "lucide-react";
+import { Bell, CheckCheck, ChevronRight, CircleAlert, FileSignature, Landmark, ReceiptText, Star, UsersRound, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { EmptyState } from "@/components/empty-state";
@@ -26,6 +26,7 @@ const ICONS: Record<string, LucideIcon> = {
   duplicate: UsersRound,
   review: Star,
   contract: FileSignature,
+  unbilled: Landmark,
 };
 
 /**

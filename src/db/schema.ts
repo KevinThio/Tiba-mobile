@@ -522,3 +522,21 @@ export const noteBillings = pgTable("note_billings", {
   billedAt: timestamp("billed_at", { withTimezone: true }).notNull().defaultNow(),
   billedById: text("billed_by_id").references(() => clinicians.id, { onDelete: "set null" }),
 });
+
+// Insurance billing reminders sent to the practice admin (spec v2 data: date sent, notes included).
+export const billingReminders = pgTable(
+  "billing_reminders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    sentById: text("sent_by_id").references(() => clinicians.id, { onDelete: "set null" }),
+    sentTo: text("sent_to").notNull(),
+    // How many notes were waiting, and how many of those for more than 30 days.
+    noteCount: integer("note_count").notNull(),
+    overdueCount: integer("overdue_count").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("billing_reminders_practice_idx").on(t.practiceId, t.createdAt)],
+);
