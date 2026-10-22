@@ -6,6 +6,7 @@ import {
   DEFAULT_CLAUSES,
   newDetails,
   renderClauses,
+  withAllServices,
   type AgreementClause,
   type AgreementDetails,
   type AgreementStatus,
@@ -44,10 +45,14 @@ export async function loadAgreement(patientId: string, practiceId: string, admin
   if (!p) return null;
 
   const [saved] = await db.select().from(serviceAgreements).where(eq(serviceAgreements.patientId, patientId));
-  const details =
-    (saved?.details as AgreementDetails | null) ??
-    newDetails({ address: p.address, phone: p.phone, insurer: p.insurer, services: p.servicesOrdered, witnessName: adminName });
   const started = Boolean(saved?.patientSignature || saved?.adminSignature);
+  const savedDetails = saved?.details as AgreementDetails | null | undefined;
+  // A signed agreement keeps its details exactly as signed; an unsigned one gains any newer service rows.
+  const details = savedDetails
+    ? started
+      ? savedDetails
+      : withAllServices(savedDetails)
+    : newDetails({ address: p.address, phone: p.phone, insurer: p.insurer, services: p.servicesOrdered, witnessName: adminName });
   const clauses = started ? null : await practiceAgreementClauses(practiceId);
   // Signed agreements keep the wording as signed; otherwise it's rendered from today's wording.
   const sections = started && saved ? saved.sections : renderClauses(clauses!, { practice: p.practiceName, client: p.fullName, details });

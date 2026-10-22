@@ -11,7 +11,7 @@ Pre-filled from the patient record where Tiba has it (name, date of birth, date 
 | Client | Name, date of birth and date of referral (from the record); address, city, state or county, zip or postal code, telephone; date of initial client contact |
 | Emergency contact | Name, relationship (optional), address, city, state, zip, telephone |
 | Insurance details | Responsible party (insurer or person paying), address, city, state, zip, telephone; % the insurance covers; what the client pays per visit; deductible billed to the client |
-| Services | "I believe my service needs to be" (free text); for RN/LPN visits, Personal Care Assistant visits and Companion/sitter visits: ticked or not, frequency, duration, charge, payer, amount the payer pays, amount the client pays |
+| Services | "I believe my service needs to be" (free text); for RN/LPN visits, Physical therapy (PT), Occupational therapy (OT) and Speech therapy (ST) visits, Personal Care Assistant visits and Companion/sitter visits: ticked or not (pre-ticked when that service is ordered on the patient record), frequency, duration, charge, payer, amount the payer pays, amount the client pays |
 | Rates | Weekend and weekday rate for hours or visits, or "not applicable"; other local holidays |
 | Deposit | None, cash, check (with check number) or card, and the amount. Card numbers are never stored. |
 | Client's answers | Access to personal funds Yes/No; use of personal vehicle Yes/No; accepting or denying the services; initials (confirming the billing, authorizations and rights sections) |
@@ -22,13 +22,15 @@ Signing needs: the client's address and telephone, a responsible party, at least
 
 ## Default wording (practice-editable)
 
+PT, OT and ST were added on 22 Oct 2026. Practices that saved their own wording before then keep it; they can add the therapy sentences under **Settings → Service agreement**.
+
 `{tokens}` are filled in from the agreement; `[blanks]` must be filled in by the practice before anyone can sign.
 
 | Section | Summary |
 |---|---|
-| Consent to services | Permission for {practice} ("the Agency") to provide nursing, personal care, companion/sitter or other home care ordered by the physician |
+| Consent to services | Permission for {practice} ("the Agency") to provide nursing, physical, occupational or speech therapy, personal care, companion/sitter or other home care ordered by the physician |
 | Client's rights, emergency plan and complaints | Bill of Rights, advance directives, emergency plan, DNR, conduct, abuse/neglect/exploitation; [state complaint hotline number], [state licensing authority number] |
-| Services to be provided | What nursing, personal care and companion services include |
+| Services to be provided | What nursing, therapy (PT, OT, ST), personal care and companion services include |
 | Billing | Right to know costs; insurer {insurer} covers {coveragePercent}%; client pays {clientPerVisit} per visit; deductible {deductible}; invoices [every two weeks]; due in [15] days; late fee [10%] |
 | Cancelling services | Cancel any time; travel and staff time may be charged for late cancellation |
 | Release of information for payment | Release to agencies and insurers to pay claims |

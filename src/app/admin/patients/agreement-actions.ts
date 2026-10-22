@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
 import { serviceAgreements } from "@/db/schema";
-import { blanksIn, renderClauses, type AgreementDetails } from "@/lib/agreement-template";
+import { blanksIn, renderClauses, SERVICE_KEYS, type AgreementDetails } from "@/lib/agreement-template";
 import { loadAgreement, practiceAgreementClauses } from "@/lib/agreements";
 import { requireAdmin } from "@/lib/auth";
 import { isSignatureImage } from "@/lib/signature";
@@ -13,7 +13,7 @@ import { isSignatureImage } from "@/lib/signature";
 const t = (max = 120) => z.string().trim().max(max);
 const address = { address: t(200), city: t(), state: t(), zip: t(20), phone: t(40) };
 const row = z.object({
-  key: z.enum(["nursing", "personal", "companion"]),
+  key: z.enum(SERVICE_KEYS),
   label: t(),
   included: z.boolean(),
   frequency: t(),
@@ -30,7 +30,7 @@ const detailsSchema = z.object({
   emergency: z.object({ ...address, name: t(), relationship: t(60) }),
   insurance: z.object({ ...address, responsibleParty: t(), coveragePercent: t(10), clientPerVisit: t(40), deductible: t(40) }),
   serviceNeeds: t(1000),
-  services: z.array(row).length(3),
+  services: z.array(row).length(SERVICE_KEYS.length),
   rates: z.object({ notApplicable: z.boolean(), weekend: amounts, weekday: amounts }),
   holidays: t(300),
   deposit: z.object({ amount: t(40), method: z.enum(["none", "check", "cash", "card"]), checkNumber: t(40) }),

@@ -5,8 +5,20 @@
 
 export type AgreementClause = { id: string; h: string; text: string };
 
+/** The services an agreement can list, in order, with the patient's "services ordered" code that pre-ticks each. */
+export const SERVICE_ROWS = [
+  { key: "nursing", label: "RN/LPN visits", ordered: "RN" },
+  { key: "pt", label: "Physical therapy (PT) visits", ordered: "PT" },
+  { key: "ot", label: "Occupational therapy (OT) visits", ordered: "OT" },
+  { key: "st", label: "Speech therapy (ST) visits", ordered: "ST" },
+  { key: "personal", label: "Personal Care Assistant visits", ordered: "HHA" },
+  { key: "companion", label: "Companion/sitter visits", ordered: null },
+] as const;
+export type ServiceKey = (typeof SERVICE_ROWS)[number]["key"];
+export const SERVICE_KEYS = SERVICE_ROWS.map((r) => r.key) as [ServiceKey, ...ServiceKey[]];
+
 export type ServiceRow = {
-  key: "nursing" | "personal" | "companion";
+  key: ServiceKey;
   label: string;
   included: boolean;
   frequency: string;
@@ -50,28 +62,30 @@ export const AGREEMENT_BADGE: Record<AgreementStatus, { label: string; variant: 
 const emptyAddress = (): Address => ({ address: "", city: "", state: "", zip: "", phone: "" });
 
 /** A new agreement, pre-filled from what Tiba already knows about the patient. */
+function serviceRow(key: ServiceKey, label: string, included: boolean, insurer: string | null): ServiceRow {
+  return { key, label, included, frequency: "", duration: "", charge: "", payer: included ? (insurer ?? "") : "", payerAmount: "", clientAmount: "" };
+}
+
+/**
+ * An agreement's service rows in today's order, adding any it was saved without (PT, OT and ST
+ * came after the first agreements), unticked. Only for agreements nobody has signed yet.
+ */
+export function withAllServices(details: AgreementDetails): AgreementDetails {
+  const saved = new Map(details.services.map((s) => [s.key, s]));
+  return { ...details, services: SERVICE_ROWS.map((r) => saved.get(r.key) ?? serviceRow(r.key, r.label, false, null)) };
+}
+
 export function newDetails(prefill: { address: string | null; phone: string | null; insurer: string | null; services: string[]; witnessName: string }): AgreementDetails {
-  const row = (key: ServiceRow["key"], label: string, included: boolean): ServiceRow => ({
-    key,
-    label,
-    included,
-    frequency: "",
-    duration: "",
-    charge: "",
-    payer: included ? (prefill.insurer ?? "") : "",
-    payerAmount: "",
-    clientAmount: "",
-  });
   return {
     client: { ...emptyAddress(), address: prefill.address ?? "", phone: prefill.phone ?? "", initialContactDate: "" },
     emergency: { ...emptyAddress(), name: "", relationship: "" },
     insurance: { ...emptyAddress(), responsibleParty: prefill.insurer ?? "", coveragePercent: "", clientPerVisit: "", deductible: "" },
     serviceNeeds: "",
-    services: [
-      row("nursing", "RN/LPN visits", prefill.services.includes("RN")),
-      row("personal", "Personal Care Assistant visits", prefill.services.includes("HHA")),
-      row("companion", "Companion/sitter visits", false),
-    ],
+    // Ticked when the patient's record has that service ordered.
+    services: SERVICE_ROWS.map((r) => {
+      const included = r.ordered !== null && prefill.services.includes(r.ordered);
+      return serviceRow(r.key, r.label, included, prefill.insurer);
+    }),
     rates: { notApplicable: false, weekend: { amount: "", hours: "", visits: "" }, weekday: { amount: "", hours: "", visits: "" } },
     holidays: "",
     deposit: { amount: "", method: "none", checkNumber: "" },
@@ -127,7 +141,7 @@ const c = (h: string, text: string): AgreementClause => ({ id: `default-${++n}`,
 export const DEFAULT_CLAUSES: AgreementClause[] = [
   c(
     "Consent to services",
-    'I grant permission to the employees of {practice}, here called "the Agency", to provide skilled nursing services, personal care assistance, companion or sitter services, or other home care services as required and ordered by my physician.',
+    'I grant permission to the employees of {practice}, here called "the Agency", to provide skilled nursing services, physical, occupational or speech therapy, personal care assistance, companion or sitter services, or other home care services as required and ordered by my physician.',
   ),
   c(
     "Client's rights, emergency plan and complaints",
@@ -135,7 +149,7 @@ export const DEFAULT_CLAUSES: AgreementClause[] = [
   ),
   c(
     "Services to be provided",
-    "Nursing services are provided by an RN or LPN and may include assessing my needs, providing treatments and giving medicines as ordered by my physician, monitoring my condition and teaching me about my care. Personal care services include help with bathing, toileting, grooming, shaving, dental care, dressing, eating, housekeeping tasks, walking and transfers. Companion or sitter services include transport and escort, preparing and serving meals, and household tasks essential to cleanliness and safety.",
+    "Nursing services are provided by an RN or LPN and may include assessing my needs, providing treatments and giving medicines as ordered by my physician, monitoring my condition and teaching me about my care. Therapy services are provided by a licensed physical, occupational or speech therapist (or an assistant they supervise) and may include assessing my needs, treatment, exercises and teaching to help me regain movement, daily living skills, speech or swallowing. Personal care services include help with bathing, toileting, grooming, shaving, dental care, dressing, eating, housekeeping tasks, walking and transfers. Companion or sitter services include transport and escort, preparing and serving meals, and household tasks essential to cleanliness and safety.",
   ),
   c(
     "Billing",
