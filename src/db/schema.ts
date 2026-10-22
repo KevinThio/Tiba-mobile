@@ -608,6 +608,16 @@ export const clinicianProfiles = pgTable("clinician_profiles", {
   education: jsonb("education").$type<EducationEntry[]>().notNull().default([]),
   // [{ id, name, issuer, expiry }]
   certifications: jsonb("certifications").$type<Certification[]>().notNull().default([]),
+  // Career experience, newest first: [{ id, role, employer, start, end, summary }] (months as "YYYY-MM").
+  experience: jsonb("experience").$type<ExperienceEntry[]>().notNull().default([]),
+  // Contact details the clinician keeps up to date (the sign-in email stays separate).
+  phone: text("phone"),
+  contactEmail: text("contact_email"),
+  address: text("address"),
+  city: text("city"),
+  region: text("region"),
+  postalCode: text("postal_code"),
+  // The emergency contact: the clinician fills it in on Profile; the admin can correct it.
   emergencyName: text("emergency_name"),
   emergencyRelationship: text("emergency_relationship"),
   emergencyPhone: text("emergency_phone"),
@@ -616,6 +626,8 @@ export const clinicianProfiles = pgTable("clinician_profiles", {
 
 export type EducationEntry = { id: string; level: string; course: string; school: string; year: string };
 export type Certification = { id: string; name: string; issuer: string; expiry: string };
+/** `end` is "" while it's the clinician's current role. */
+export type ExperienceEntry = { id: string; role: string; employer: string; start: string; end: string; summary: string };
 export type ContractTerms = { start: string; length: string; pay: string; role: string; extra: string };
 export type Letterhead = { address: string; phone: string; email: string; image: string | null };
 

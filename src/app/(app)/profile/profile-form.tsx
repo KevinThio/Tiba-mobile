@@ -9,9 +9,11 @@ import { FormAlert } from "@/components/form-alert";
 import { FormField } from "@/components/form-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import type { Certification, EducationEntry } from "@/db/schema";
+import { Textarea } from "@/components/ui/textarea";
+import type { Certification, EducationEntry, ExperienceEntry } from "@/db/schema";
 import { DISCIPLINES, type Discipline } from "@/lib/disciplines";
 import { CERT_STATUS, certificationStatus, EDUCATION_LEVELS, hasLicence, QUICK_CERTS } from "@/lib/profiles";
 import { saveProfile, type ProfileInput } from "./actions";
@@ -23,15 +25,27 @@ type Profile = {
   licenseExpiry: string;
   education: EducationEntry[];
   certifications: Certification[];
+  experience: ExperienceEntry[];
+  phone: string;
+  contactEmail: string;
+  address: string;
+  city: string;
+  region: string;
+  postalCode: string;
+  emergencyName: string;
+  emergencyRelationship: string;
+  emergencyPhone: string;
 };
 
 const newId = () => crypto.randomUUID();
 
-/** Profile (spec v2 section 5c and the prototype): About you, Education, Certifications. */
+/** Profile (spec v2 section 5c and the prototype): About you, contact details, experience, education, certifications and emergency contact. */
 export function ProfileForm({ discipline: initialDiscipline, profile }: { discipline: Discipline | null; profile: Profile }) {
   const router = useRouter();
   const [discipline, setDiscipline] = useState<string>(initialDiscipline ?? "");
   const [p, setP] = useState(profile);
+  // Roles marked "I work here now" (saved with no end month).
+  const [current, setCurrent] = useState(() => new Set(profile.experience.filter((j) => j.start && !j.end).map((j) => j.id)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Profile>) => {
@@ -40,6 +54,7 @@ export function ProfileForm({ discipline: initialDiscipline, profile }: { discip
   };
   const editEdu = (id: string, patch: Partial<EducationEntry>) => set({ education: p.education.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
   const editCert = (id: string, patch: Partial<Certification>) => set({ certifications: p.certifications.map((c) => (c.id === id ? { ...c, ...patch } : c)) });
+  const editJob = (id: string, patch: Partial<ExperienceEntry>) => set({ experience: p.experience.map((j) => (j.id === id ? { ...j, ...patch } : j)) });
 
   async function save() {
     if (!discipline) return setError("Pick your discipline.");
@@ -84,6 +99,75 @@ export function ProfileForm({ discipline: initialDiscipline, profile }: { discip
             <FormField label="Expires (optional)" name="licenseExpiry" type="date" value={p.licenseExpiry} onChange={(e) => set({ licenseExpiry: e.target.value })} />
           </div>
         )}
+      </section>
+
+      <section className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
+        <div>
+          <h2 className="text-h3">Contact details</h2>
+          <p className="text-small text-muted-foreground">How your practice reaches you. Your sign-in email doesn&apos;t change.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <FormField label="Phone" name="phone" type="tel" autoComplete="tel" value={p.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="e.g. 0712 345 678" />
+          <FormField label="Contact email" name="contactEmail" type="email" autoComplete="email" value={p.contactEmail} onChange={(e) => set({ contactEmail: e.target.value })} placeholder="e.g. sam@clinic.com" />
+        </div>
+        <FormField label="Home address" name="address" autoComplete="street-address" value={p.address} onChange={(e) => set({ address: e.target.value })} placeholder="Street and number" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <FormField label="City or town" name="city" autoComplete="address-level2" value={p.city} onChange={(e) => set({ city: e.target.value })} />
+          <FormField label="State or county" name="region" autoComplete="address-level1" value={p.region} onChange={(e) => set({ region: e.target.value })} />
+          <FormField label="Zip or postal code" name="postalCode" autoComplete="postal-code" value={p.postalCode} onChange={(e) => set({ postalCode: e.target.value })} />
+        </div>
+      </section>
+
+      <section className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
+        <div>
+          <h2 className="text-h3">Career experience</h2>
+          <p className="text-small text-muted-foreground">Your work history, most recent first.</p>
+        </div>
+        {p.experience.map((j, i) => (
+          <fieldset key={j.id} className="grid gap-3 rounded-md border border-border-subtle p-4">
+            <legend className="sr-only">Role {i + 1}</legend>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <FormField label="Job title" name={`job-role-${j.id}`} value={j.role} onChange={(ev) => editJob(j.id, { role: ev.target.value })} placeholder="e.g. Staff physical therapist" />
+              <FormField label="Employer" name={`job-employer-${j.id}`} value={j.employer} onChange={(ev) => editJob(j.id, { employer: ev.target.value })} placeholder="e.g. Nairobi West Hospital" />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <FormField label="From" name={`job-start-${j.id}`} type="month" value={j.start} onChange={(ev) => editJob(j.id, { start: ev.target.value })} />
+              {current.has(j.id) ? (
+                <div className="grid gap-2">
+                  <span className="text-sm font-medium">To</span>
+                  <p className="flex h-12 items-center text-muted-foreground">Present</p>
+                </div>
+              ) : (
+                <FormField label="To" name={`job-end-${j.id}`} type="month" value={j.end} onChange={(ev) => editJob(j.id, { end: ev.target.value })} />
+              )}
+              <label className="flex h-12 items-center gap-2 text-small">
+                <Checkbox
+                  checked={current.has(j.id)}
+                  onCheckedChange={(on) => {
+                    setCurrent((cur) => {
+                      const next = new Set(cur);
+                      if (on) next.add(j.id);
+                      else next.delete(j.id);
+                      return next;
+                    });
+                    if (on) editJob(j.id, { end: "" });
+                  }}
+                />
+                I work here now
+              </label>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor={`job-summary-${j.id}`}>What you did (optional)</Label>
+              <Textarea id={`job-summary-${j.id}`} rows={2} maxLength={600} value={j.summary} onChange={(ev) => editJob(j.id, { summary: ev.target.value })} placeholder="e.g. Home visits for orthopaedic and stroke patients" />
+            </div>
+            <Button variant="ghost" className="w-fit" onClick={() => set({ experience: p.experience.filter((x) => x.id !== j.id) })}>
+              <Trash2 aria-hidden /> Remove
+            </Button>
+          </fieldset>
+        ))}
+        <Button variant="outline" className="w-fit" onClick={() => set({ experience: [...p.experience, { id: newId(), role: "", employer: "", start: "", end: "", summary: "" }] })}>
+          <Plus aria-hidden /> Add a role
+        </Button>
       </section>
 
       <section className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
@@ -162,6 +246,18 @@ export function ProfileForm({ discipline: initialDiscipline, profile }: { discip
         <Button variant="outline" className="w-fit" onClick={() => set({ certifications: [...p.certifications, { id: newId(), name: "", issuer: "", expiry: "" }] })}>
           <Plus aria-hidden /> Add certification
         </Button>
+      </section>
+
+      <section className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
+        <div>
+          <h2 className="text-h3">Emergency contact</h2>
+          <p className="text-small text-muted-foreground">Who your practice should call if something happens to you at work.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <FormField label="Name" name="emergencyName" value={p.emergencyName} onChange={(e) => set({ emergencyName: e.target.value })} />
+          <FormField label="Relationship" name="emergencyRelationship" value={p.emergencyRelationship} onChange={(e) => set({ emergencyRelationship: e.target.value })} placeholder="e.g. Sister" />
+          <FormField label="Phone" name="emergencyPhone" type="tel" value={p.emergencyPhone} onChange={(e) => set({ emergencyPhone: e.target.value })} />
+        </div>
       </section>
 
       {error && <FormAlert>{error}</FormAlert>}

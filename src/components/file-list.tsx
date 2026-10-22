@@ -179,17 +179,20 @@ export function FileList({
   );
 }
 
-/** One named document (Resume or CV, W-9): upload, replace, download, remove. */
+/** One named document (ID, resume, job description, W-9): upload, replace, download, remove. */
 export function FileSlot({
   owner,
   slot,
   label,
+  hint = null,
   file,
   editable,
 }: {
   owner: Owner;
   slot: string;
   label: string;
+  /** What counts, shown under the label until a file is uploaded. */
+  hint?: string | null;
   file: FileItem | null;
   editable: boolean;
 }) {
@@ -218,7 +221,7 @@ export function FileSlot({
       <div className="min-w-0 flex-1">
         <p className="font-semibold">{label}</p>
         <p className="truncate text-small text-muted-foreground">
-          {file ? `${file.name} · ${sizeText(file.size)} · ${DATE.format(new Date(file.createdAt))}` : "Not uploaded"}
+          {file ? `${file.name} · ${sizeText(file.size)} · ${DATE.format(new Date(file.createdAt))}` : hint ? `Not uploaded · ${hint}` : "Not uploaded"}
         </p>
       </div>
       {file && (
@@ -239,7 +242,7 @@ export function FileSlot({
               size="sm"
               disabled={busy}
               onClick={async () => {
-                if (!window.confirm(`Remove your ${label.toLowerCase()}?`)) return;
+                if (!window.confirm(`Remove ${label}?`)) return;
                 setBusy(true);
                 try {
                   await remove(file.id);

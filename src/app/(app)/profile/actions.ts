@@ -11,6 +11,7 @@ import { EDUCATION_LEVELS } from "@/lib/profiles";
 
 const text = (max: number) => z.string().trim().max(max);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).or(z.literal(""));
+const month = z.string().regex(/^(\d{4}-\d{2})?$/, "Pick the month and year for each role.");
 
 const profileInput = z.object({
   discipline: z.enum(DISCIPLINE_VALUES, "Pick your discipline."),
@@ -39,11 +40,32 @@ const profileInput = z.object({
       }),
     )
     .max(30),
+  experience: z
+    .array(
+      z.object({
+        id: z.string().max(40),
+        role: text(120).min(1, "Add the job title for each role in your experience."),
+        employer: text(160).min(1, "Add the employer for each role in your experience."),
+        start: month,
+        end: month,
+        summary: text(600),
+      }),
+    )
+    .max(30),
+  phone: text(40),
+  contactEmail: z.union([z.literal(""), z.email("Your contact email doesn't look right. Check it, e.g. sam@clinic.com.").max(254)]),
+  address: text(200),
+  city: text(120),
+  region: text(120),
+  postalCode: text(20),
+  emergencyName: text(120),
+  emergencyRelationship: text(60),
+  emergencyPhone: text(40),
 });
 
 export type ProfileInput = z.input<typeof profileInput>;
 
-/** Save profile (spec v2 section 5c): About you, Education and Certifications. */
+/** Save profile (spec v2 section 5c): About you, contact details, experience, education, certifications and the emergency contact. */
 export async function saveProfile(input: ProfileInput): Promise<{ ok: true } | { ok: false; message: string }> {
   const clinician = await requireClinician();
   const parsed = profileInput.safeParse(input);
@@ -52,6 +74,11 @@ export async function saveProfile(input: ProfileInput): Promise<{ ok: true } | {
   if (v.discipline === "HHA" && v.certifications.length === 0) {
     return { ok: false, message: "Aides and CNAs need at least one certification. Add your HHA or CNA certification." };
   }
+  if (v.experience.some((e) => e.start && e.end && e.end < e.start)) {
+    return { ok: false, message: "A role in your experience ends before it starts. Check the dates." };
+  }
+  if ((v.emergencyName || v.emergencyRelationship) && !v.emergencyPhone) return { ok: false, message: "Add a phone number for your emergency contact." };
+  if (v.emergencyPhone && !v.emergencyName) return { ok: false, message: "Add your emergency contact's name." };
   const licensed = v.discipline !== "HHA";
   const row = {
     speciality: v.speciality || null,
@@ -60,6 +87,16 @@ export async function saveProfile(input: ProfileInput): Promise<{ ok: true } | {
     licenseExpiry: licensed ? v.licenseExpiry || null : null,
     education: v.education,
     certifications: v.certifications,
+    experience: v.experience,
+    phone: v.phone || null,
+    contactEmail: v.contactEmail || null,
+    address: v.address || null,
+    city: v.city || null,
+    region: v.region || null,
+    postalCode: v.postalCode || null,
+    emergencyName: v.emergencyName || null,
+    emergencyRelationship: v.emergencyRelationship || null,
+    emergencyPhone: v.emergencyPhone || null,
     updatedAt: new Date(),
   };
   await db.transaction(async (tx) => {

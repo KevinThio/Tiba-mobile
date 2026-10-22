@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { Download, FileSignature } from "lucide-react";
-import { FileSlot } from "@/components/file-list";
+import { FileList, FileSlot } from "@/components/file-list";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
@@ -10,13 +10,15 @@ import { requireClinician } from "@/lib/auth";
 import { disciplineLabel } from "@/lib/disciplines";
 import { listFiles, toSummary } from "@/lib/files";
 import { loadProfile } from "@/lib/profile-data";
+import { PROFILE_DOCS } from "@/lib/profiles";
 import { ProfileForm } from "./profile-form";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 /**
- * Profile (spec v2 section 5c and the prototype): About you, Education, Certifications and
- * Documents (resume, W-9, and signed contracts listed automatically). The admin can see it all.
+ * Profile (spec v2 section 5c and the prototype): About you, contact details, career experience,
+ * education, certifications, emergency contact and Documents (ID, resume, signed job description,
+ * W-9, other documents, and signed contracts listed automatically). The admin can see it all.
  */
 export default async function ProfilePage() {
   const clinician = await requireClinician();
@@ -30,8 +32,7 @@ export default async function ProfilePage() {
       .where(and(eq(contracts.clinicianId, clinician.id), eq(contracts.status, "signed")))
       .orderBy(desc(contracts.clinicianSignedAt)),
   ]);
-  const resume = docs.find((d) => d.slot === "resume");
-  const w9 = docs.find((d) => d.slot === "w9");
+  const others = docs.filter((d) => !d.slot);
   const owner = { ownerKind: "clinician" as const, ownerId: clinician.id };
 
   return (
@@ -51,6 +52,17 @@ export default async function ProfilePage() {
           licenseExpiry: profile.licenseExpiry,
           education: profile.education,
           certifications: profile.certifications,
+          experience: profile.experience,
+          phone: profile.phone,
+          // Starts as the sign-in email until they choose another.
+          contactEmail: profile.contactEmail || clinician.email,
+          address: profile.address,
+          city: profile.city,
+          region: profile.region,
+          postalCode: profile.postalCode,
+          emergencyName: profile.emergencyName,
+          emergencyRelationship: profile.emergencyRelationship,
+          emergencyPhone: profile.emergencyPhone,
         }}
       />
 
@@ -59,8 +71,22 @@ export default async function ProfilePage() {
           <h2 className="text-h3">Documents</h2>
           <p className="text-small text-muted-foreground">Your admin can see and download these. PDF, Word or an image, up to 5 MB.</p>
         </div>
-        <FileSlot owner={owner} slot="resume" label="Resume or CV" file={resume ? toSummary(resume) : null} editable />
-        <FileSlot owner={owner} slot="w9" label="W-9 or other IRS form" file={w9 ? toSummary(w9) : null} editable />
+        {PROFILE_DOCS.map((d) => {
+          const file = docs.find((x) => x.slot === d.slot);
+          return <FileSlot key={d.slot} owner={owner} slot={d.slot} label={d.label} hint={d.hint} file={file ? toSummary(file) : null} editable />;
+        })}
+        <div className="grid gap-2">
+          <p className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Other documents</p>
+          <FileList
+            owner={owner}
+            files={others.map(toSummary)}
+            canUpload
+            canRemove
+            requireDescription
+            hint="Anything else your practice asks for, each with a short description. Remove one and upload it again to replace it."
+            emptyText="No other documents yet."
+          />
+        </div>
         <div className="grid gap-2">
           <p className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Signed contracts</p>
           {signed.length ? (

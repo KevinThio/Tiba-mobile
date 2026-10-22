@@ -3,9 +3,10 @@ import { db } from "@/db";
 import { files } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { canUseOwner, cleanFileName, MAX_FILE_BYTES, sniffType, type Account, type OwnerKind } from "@/lib/files";
+import { PROFILE_DOC_SLOTS } from "@/lib/profiles";
 
 const KINDS: OwnerKind[] = ["clinician", "clinician_admin", "patient", "location"];
-const SLOTS = ["resume", "w9"];
+const SLOTS = PROFILE_DOC_SLOTS;
 
 /**
  * Upload a file (multipart: file, ownerKind, ownerId, slot?, description?). A route rather than a
@@ -41,6 +42,8 @@ export async function POST(request: Request) {
   if (!KINDS.includes(kind) || !ownerId) return json(400, "Something went wrong. Please refresh the page and try again.");
   if (slot !== null && (kind !== "clinician" || !SLOTS.includes(slot))) return json(400, "Something went wrong. Please refresh the page.");
   if (kind === "location" && !description) return json(400, "Add a short description first.");
+  // A clinician's other documents (no slot) each need a short description, so the admin knows what it is.
+  if (kind === "clinician" && !slot && !description) return json(400, "Add a short description first.");
   if (!(await canUseOwner(account, kind, ownerId, "write"))) return json(403, "You can't add files here.");
 
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
   }
 
   const [saved] = await db.transaction(async (tx) => {
-    // A Profile slot (resume, W-9) holds one file: uploading again replaces it.
+    // A Profile slot (ID, resume, job description, W-9) holds one file: uploading again replaces it.
     if (slot) await tx.delete(files).where(and(eq(files.ownerKind, kind), eq(files.ownerId, ownerId), eq(files.slot, slot)));
     return tx
       .insert(files)

@@ -12,7 +12,7 @@ import { requireAdmin } from "@/lib/auth";
 import { disciplineLabel, isDiscipline } from "@/lib/disciplines";
 import { listFiles, toSummary } from "@/lib/files";
 import { loadProfile } from "@/lib/profile-data";
-import { CERT_STATUS, certificationStatus } from "@/lib/profiles";
+import { CERT_STATUS, certificationStatus, PROFILE_DOCS } from "@/lib/profiles";
 import { ClinicianStatusActions } from "../clinician-status-actions";
 import { EmergencyContactForm } from "./emergency-contact-form";
 
@@ -54,8 +54,9 @@ export default async function AdminClinicianPage({ params }: PageProps<"/admin/c
       .orderBy(desc(contracts.clinicianSignedAt)),
   ]);
   const role = isDiscipline(c.discipline) ? disciplineLabel(c.discipline) : "Discipline not set";
-  const resume = own.find((d) => d.slot === "resume");
-  const w9 = own.find((d) => d.slot === "w9");
+  const others = own.filter((d) => !d.slot);
+  const address = [profile.address, profile.city, [profile.region, profile.postalCode].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const monthText = (m: string) => (m ? new Date(`${m}-01T00:00:00Z`).toLocaleDateString("en-GB", { month: "short", year: "numeric", timeZone: "UTC" }) : "");
   const owner = { ownerKind: "clinician" as const, ownerId: c.id };
 
   return (
@@ -80,7 +81,10 @@ export default async function AdminClinicianPage({ params }: PageProps<"/admin/c
         <Card title="Details">
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Detail label="Role">{role}</Detail>
-            <Detail label="Email">{c.email}</Detail>
+            <Detail label="Sign-in email">{c.email}</Detail>
+            <Detail label="Contact email">{profile.contactEmail || <Missing />}</Detail>
+            <Detail label="Phone">{profile.phone || <Missing />}</Detail>
+            <Detail label="Address">{address || <Missing />}</Detail>
             <Detail label="Location">
               {c.locationId ? (
                 <Link href={`/admin/locations/${c.locationId}`} className="underline-offset-2 hover:underline">
@@ -121,6 +125,25 @@ export default async function AdminClinicianPage({ params }: PageProps<"/admin/c
           )}
         </Card>
 
+        <Card title="Career experience">
+          {profile.experience.length ? (
+            <ul className="grid gap-2">
+              {profile.experience.map((j) => (
+                <li key={j.id} className="rounded-sm bg-muted px-3 py-2.5">
+                  <p className="font-semibold">{j.role}</p>
+                  <p className="text-small text-muted-foreground">
+                    {j.employer}
+                    {j.start && ` · ${monthText(j.start)} – ${j.end ? monthText(j.end) : "present"}`}
+                  </p>
+                  {j.summary && <p className="mt-1 text-small">{j.summary}</p>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Missing text="Nothing added yet." />
+          )}
+        </Card>
+
         <Card title="Certifications">
           {profile.certifications.length ? (
             <ul className="grid gap-2">
@@ -146,8 +169,13 @@ export default async function AdminClinicianPage({ params }: PageProps<"/admin/c
 
         <Card title="Profile documents" className="md:col-span-2">
           <p className="text-small text-muted-foreground">Uploaded by {c.name.split(" ")[0]}.</p>
-          <FileSlot owner={owner} slot="resume" label="Resume or CV" file={resume ? toSummary(resume) : null} editable={false} />
-          <FileSlot owner={owner} slot="w9" label="W-9 or other IRS form" file={w9 ? toSummary(w9) : null} editable={false} />
+          {PROFILE_DOCS.map((d) => {
+            const file = own.find((x) => x.slot === d.slot);
+            return <FileSlot key={d.slot} owner={owner} slot={d.slot} label={d.label} file={file ? toSummary(file) : null} editable={false} />;
+          })}
+          {others.length > 0 && (
+            <FileList owner={owner} files={others.map(toSummary)} canUpload={false} canRemove={false} hint="Other documents" emptyText="" />
+          )}
           {signed.map((k) => (
             <div key={k.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-border-subtle px-4 py-3">
               <FileSignature className="size-5 shrink-0 text-primary" aria-hidden />

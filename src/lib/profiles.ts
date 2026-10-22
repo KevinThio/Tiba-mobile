@@ -22,5 +22,18 @@ export const CERT_STATUS = {
   expired: { label: "Expired", variant: "danger" },
 } as const;
 
+/**
+ * Named Profile documents, one file each (uploading again replaces it). The clinician uploads,
+ * replaces, removes and downloads them; the admin downloads them. Other documents, each with a
+ * short description, go in the clinician's file list with no slot.
+ */
+export const PROFILE_DOCS = [
+  { slot: "id_document", label: "ID document", hint: "Driver's licence, passport or national ID card" },
+  { slot: "resume", label: "Resume or CV", hint: null },
+  { slot: "job_description", label: "Signed job description", hint: null },
+  { slot: "w9", label: "W-9 or other tax form", hint: null },
+] as const;
+export const PROFILE_DOC_SLOTS: string[] = PROFILE_DOCS.map((d) => d.slot);
+
 /** Licensed disciplines show the licence fields; aides and CNAs don't (spec v2). */
 export const hasLicence = (discipline: string | null) => discipline !== "HHA";
