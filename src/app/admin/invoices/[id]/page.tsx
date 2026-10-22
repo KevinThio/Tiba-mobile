@@ -78,7 +78,7 @@ export default async function AdminInvoicePage({ params }: PageProps<"/admin/inv
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Detail label="Number">{invoiceLabel(invoice.number)}</Detail>
             <Detail label="Amount">{money(invoice.totalMinor)}</Detail>
-            <Detail label="Patient">{invoice.patientName}</Detail>
+            <Detail label="Patient">{invoice.severalPatients ? `${invoice.patientName} · billed to the practice` : invoice.patientName}</Detail>
             <Detail label="Clinician">{invoice.clinicianName}</Detail>
             <Detail label="Sent">{DATE.format(invoice.createdAt)}</Detail>
             <Detail label="Payment due">
@@ -86,7 +86,7 @@ export default async function AdminInvoicePage({ params }: PageProps<"/admin/inv
                 ? DATE.format(new Date(`${invoice.dueDate}T00:00:00Z`))
                 : "On receipt"}
             </Detail>
-            <Detail label="Insurer">{invoice.insurer ?? "Not added"}</Detail>
+            {!invoice.severalPatients && <Detail label="Insurer">{invoice.insurer ?? "Not added"}</Detail>}
             <Detail label="Emailed to">{invoice.sentTo ?? "Not emailed"}</Detail>
             {invoice.status === "paid" && (
               <Detail label="Paid">
@@ -103,7 +103,8 @@ export default async function AdminInvoicePage({ params }: PageProps<"/admin/inv
               {visits.map((v) => (
                 <li key={v.appointmentId} className="flex justify-between gap-3 text-small">
                   <span className="min-w-0">
-                    {DATE.format(v.startsAt)} · {v.typeOfCare}
+                    {DATE.format(v.startsAt)} · {invoice.severalPatients && `${v.patientName} · `}
+                    {v.typeOfCare}
                   </span>
                   <span className="shrink-0 tabular-nums">{money(v.feeMinor)}</span>
                 </li>

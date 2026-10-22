@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, min, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { appointments, clinicians, invoiceEvents, invoiceItems, invoices, noteBillings, notes, patients } from "@/db/schema";
+import { invoicePatientLabel } from "@/lib/invoice-patients";
 
 // Admin queries for Completed notes, Insurance billing and Invoices (spec v2 sections 5 and
 // 5b). Every one is scoped to the admin's practice through clinicians.practice_id.
@@ -67,13 +68,13 @@ export function practiceInvoices(practiceId: string) {
       seenAt: invoices.seenAt,
       paidOn: invoices.paidOn,
       issueCategory: invoices.issueCategory,
-      patientName: patients.fullName,
+      patientName: invoicePatientLabel,
       clinicianId: clinicians.id,
       clinicianName: clinicians.name,
     })
     .from(invoices)
     .innerJoin(clinicians, eq(clinicians.id, invoices.clinicianId))
-    .innerJoin(patients, eq(patients.id, invoices.patientId))
+    .leftJoin(patients, eq(patients.id, invoices.patientId))
     .where(eq(clinicians.practiceId, practiceId))
     .orderBy(desc(invoices.createdAt));
 }
@@ -109,14 +110,15 @@ export async function invoiceDetail(invoiceId: string, practiceId: string) {
       issueCategory: invoices.issueCategory,
       issueComment: invoices.issueComment,
       issueFlaggedAt: invoices.issueFlaggedAt,
-      patientName: patients.fullName,
+      patientName: invoicePatientLabel,
+      severalPatients: sql<boolean>`${invoices.patientId} is null`,
       insurer: patients.insurer,
       clinicianId: clinicians.id,
       clinicianName: clinicians.name,
     })
     .from(invoices)
     .innerJoin(clinicians, eq(clinicians.id, invoices.clinicianId))
-    .innerJoin(patients, eq(patients.id, invoices.patientId))
+    .leftJoin(patients, eq(patients.id, invoices.patientId))
     .where(and(eq(invoices.id, invoiceId), eq(clinicians.practiceId, practiceId)));
   if (!invoice) return null;
 
@@ -127,9 +129,11 @@ export async function invoiceDetail(invoiceId: string, practiceId: string) {
         startsAt: appointments.startsAt,
         typeOfCare: appointments.typeOfCare,
         feeMinor: invoiceItems.feeMinor,
+        patientName: patients.fullName,
       })
       .from(invoiceItems)
       .innerJoin(appointments, eq(appointments.id, invoiceItems.appointmentId))
+      .innerJoin(patients, eq(patients.id, appointments.patientId))
       .where(eq(invoiceItems.invoiceId, invoiceId))
       .orderBy(asc(appointments.startsAt)),
     db

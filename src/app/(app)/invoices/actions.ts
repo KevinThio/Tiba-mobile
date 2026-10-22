@@ -9,6 +9,7 @@ import { requireClinician } from "@/lib/auth";
 import { EmailNotConfiguredError, renderEmail, sendEmail } from "@/lib/email";
 import { formatMoney } from "@/lib/countries";
 import { invoiceNumberLabel, renderInvoicePdf } from "@/lib/invoice-pdf";
+import { invoicePatientLabel } from "@/lib/invoice-patients";
 import { notifyAdmins } from "@/lib/notifications";
 import { isValidTimeZone } from "@/lib/reminders";
 import { DUE_OPTIONS, DUE_ORDER, type Due, PERIODS, type Period } from "./periods";
@@ -73,7 +74,10 @@ export async function listVisitsForInvoicing(period: Period): Promise<Invoiceabl
 export type InvoiceSummary = {
   id: string;
   number: number;
+  /** The patient's name, or "3 patients" for an invoice covering several. */
   patientName: string;
+  /** True when the invoice covers several patients (billed to the practice). */
+  severalPatients: boolean;
   createdAt: string;
   totalMinor: number;
   currency: string;
@@ -91,7 +95,8 @@ export async function listInvoices(): Promise<InvoiceSummary[]> {
     .select({
       id: invoices.id,
       number: invoices.number,
-      patientName: patients.fullName,
+      patientName: invoicePatientLabel,
+      severalPatients: sql<boolean>`${invoices.patientId} is null`,
       createdAt: invoices.createdAt,
       totalMinor: invoices.totalMinor,
       currency: invoices.currency,
@@ -103,11 +108,11 @@ export async function listInvoices(): Promise<InvoiceSummary[]> {
       visits: db.$count(invoiceItems, eq(invoiceItems.invoiceId, invoices.id)),
     })
     .from(invoices)
-    .innerJoin(patients, eq(patients.id, invoices.patientId))
+    .leftJoin(patients, eq(patients.id, invoices.patientId))
     .where(eq(invoices.clinicianId, clinician.id))
     .orderBy(desc(invoices.number))
     .limit(20);
-  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), sentAt: r.sentAt?.toISOString() ?? null }));
+  return rows.map((r) => ({ ...r, severalPatients: Boolean(r.severalPatients), createdAt: r.createdAt.toISOString(), sentAt: r.sentAt?.toISOString() ?? null }));
 }
 
 const emailSchema = z.email("That email address doesn't look quite right. Please check it.").max(254);
@@ -148,7 +153,6 @@ export async function createInvoice(input: z.input<typeof createSchema>): Promis
       .where(and(eq(appointments.clinicianId, clinician.id), inArray(appointments.id, ids)));
 
     if (visits.length !== ids.length) return { ok: false as const, message: "Some of those visits couldn't be found. Please refresh and try again." };
-    if (new Set(visits.map((v) => v.patientId)).size > 1) return { ok: false as const, message: "An invoice is for one patient. Please tick visits for one patient at a time." };
     if (visits.some((v) => v.invoiced)) return { ok: false as const, message: "One of those visits is already on an invoice. Please refresh and try again." };
     if (visits.some((v) => v.startsAt > new Date())) return { ok: false as const, message: "Only visits that have happened can be invoiced." };
     if (new Set(visits.map((v) => v.currency)).size > 1) {
@@ -168,13 +172,16 @@ export async function createInvoice(input: z.input<typeof createSchema>): Promis
       .returning({ number: clinicians.lastInvoiceNumber });
 
     const totalMinor = visits.reduce((sum, v) => sum + v.feeMinor, 0);
+    // Visits for one patient bill that patient; visits for several bill the practice (no patient).
+    const patientIds = [...new Set(visits.map((v) => v.patientId))];
+    const patientId = patientIds.length === 1 ? patientIds[0] : null;
     const zone = parsed.data.timeZone ?? visits[0].timeZone ?? "UTC";
     const [invoice] = await tx
       .insert(invoices)
       .values({
         clinicianId: clinician.id,
         number,
-        patientId: visits[0].patientId,
+        patientId,
         totalMinor,
         // The visits' currency: what they were booked in, whatever the practice uses now.
         currency: visits[0].currency,
@@ -183,19 +190,21 @@ export async function createInvoice(input: z.input<typeof createSchema>): Promis
       .returning({ id: invoices.id });
     await tx.insert(invoiceItems).values(visits.map((v) => ({ invoiceId: invoice.id, appointmentId: v.id, feeMinor: v.feeMinor })));
     await tx.insert(invoiceEvents).values({ invoiceId: invoice.id, kind: "sent", actorId: clinician.id });
-    if (email) await tx.update(patients).set({ invoiceEmail: email }).where(eq(patients.id, visits[0].patientId));
+    if (email && patientId) await tx.update(patients).set({ invoiceEmail: email }).where(eq(patients.id, patientId));
 
-    return { ok: true as const, invoiceId: invoice.id, number, totalMinor, currency: visits[0].currency, patientId: visits[0].patientId };
+    return { ok: true as const, invoiceId: invoice.id, number, totalMinor, currency: visits[0].currency, patientId, patientCount: patientIds.length };
   });
 
   if (!created.ok) return created;
   // Spec v2: every invoice a clinician sends notifies the admin.
-  const [patient] = await db.select({ name: patients.fullName }).from(patients).where(eq(patients.id, created.patientId));
+  const [patient] = created.patientId
+    ? await db.select({ name: patients.fullName }).from(patients).where(eq(patients.id, created.patientId))
+    : [];
   await notifyAdmins(clinician.practiceId, {
     type: "invoice",
     refId: created.invoiceId,
     title: `${clinician.name} sent invoice ${invoiceNumberLabel(created.number)}`,
-    detail: `${formatMoney(created.totalMinor, clinician.country, created.currency)} · ${patient?.name ?? "Patient"}`,
+    detail: `${formatMoney(created.totalMinor, clinician.country, created.currency)} · ${patient?.name ?? `${created.patientCount} patients`}`,
     href: "/admin/invoices",
   });
   revalidatePath("/invoices");

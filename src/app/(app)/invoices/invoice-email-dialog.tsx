@@ -22,6 +22,7 @@ export function InvoiceEmailDialog({
   emailRequired,
   submitLabel,
   withDue = false,
+  severalPatients = false,
   onSubmit,
 }: {
   open: boolean;
@@ -34,6 +35,8 @@ export function InvoiceEmailDialog({
   submitLabel: (hasEmail: boolean) => string;
   /** Ask for "Payment due" (new invoices only). */
   withDue?: boolean;
+  /** The invoice lists several patients: it's billed to the practice, never emailed to a patient. */
+  severalPatients?: boolean;
   onSubmit: (email: string, due: Due) => Promise<string | null>; // returns an error message, or null when done
 }) {
   return (
@@ -50,6 +53,7 @@ export function InvoiceEmailDialog({
             emailRequired={emailRequired}
             submitLabel={submitLabel}
             withDue={withDue}
+            severalPatients={severalPatients}
             onSubmit={onSubmit}
             onCancel={() => onOpenChange(false)}
           />
@@ -65,6 +69,7 @@ function EmailForm({
   emailRequired,
   submitLabel,
   withDue,
+  severalPatients,
   onSubmit,
   onCancel,
 }: {
@@ -73,6 +78,7 @@ function EmailForm({
   emailRequired: boolean;
   submitLabel: (hasEmail: boolean) => string;
   withDue: boolean;
+  severalPatients: boolean;
   onSubmit: (email: string, due: Due) => Promise<string | null>;
   onCancel: () => void;
 }) {
@@ -100,7 +106,7 @@ function EmailForm({
       {summary && (
         <dl className="grid grid-cols-3 gap-3 rounded-lg bg-muted p-4 text-sm">
           <div className="col-span-3 sm:col-span-1">
-            <dt className="text-muted-foreground">Patient</dt>
+            <dt className="text-muted-foreground">{severalPatients ? "Patients" : "Patient"}</dt>
             <dd className="font-medium">{summary.patientName}</dd>
           </div>
           <div>
@@ -112,6 +118,12 @@ function EmailForm({
             <dd className="font-medium tabular-nums">{summary.total}</dd>
           </div>
         </dl>
+      )}
+      {severalPatients && (
+        <p className="rounded-md bg-info px-4 py-3 text-small text-info-foreground">
+          This invoice lists several patients, so it&apos;s billed to your practice. Send it to your practice&apos;s billing
+          email, not to a patient.
+        </p>
       )}
       {withDue && (
         <fieldset className="grid gap-2">
@@ -130,11 +142,15 @@ function EmailForm({
         name="invoiceEmail"
         type="email"
         autoComplete="email"
-        placeholder="e.g. patient@example.com"
+        placeholder={severalPatients ? "e.g. billing@yourpractice.com" : "e.g. patient@example.com"}
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required={emailRequired}
-        hint="We'll send it as a PDF attachment and remember this address for the patient's next invoice."
+        hint={
+          severalPatients
+            ? "We'll send it as a PDF attachment."
+            : "We'll send it as a PDF attachment and remember this address for the patient's next invoice."
+        }
       />
       {error && <FormAlert>{error}</FormAlert>}
       <DialogFooter className="gap-2 sm:gap-2">

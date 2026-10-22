@@ -47,7 +47,8 @@ export async function loadInvoiceForPdf(invoiceId: string, scope: InvoiceScope) 
     .from(invoices)
     .innerJoin(clinicians, eq(clinicians.id, invoices.clinicianId))
     .innerJoin(practices, eq(practices.id, clinicians.practiceId))
-    .innerJoin(patients, eq(patients.id, invoices.patientId))
+    // No patient when the invoice covers several: then it's billed to the practice.
+    .leftJoin(patients, eq(patients.id, invoices.patientId))
     .where(
       and(
         eq(invoices.id, invoiceId),
@@ -63,9 +64,11 @@ export async function loadInvoiceForPdf(invoiceId: string, scope: InvoiceScope) 
       timeIn: appointments.timeIn,
       timeOut: appointments.timeOut,
       feeMinor: invoiceItems.feeMinor,
+      patientName: patients.fullName,
     })
     .from(invoiceItems)
     .innerJoin(appointments, eq(appointments.id, invoiceItems.appointmentId))
+    .innerJoin(patients, eq(patients.id, appointments.patientId))
     .where(eq(invoiceItems.invoiceId, invoiceId))
     .orderBy(asc(appointments.startsAt));
   // "On receipt" when due the day it was made, otherwise the date ("30 Nov 2026").
@@ -86,12 +89,16 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
   const logo = data.logo && parseLogoDataUrl(data.logo) ? data.logo : null;
 
   const number = invoiceNumberLabel(data.number);
+  // Several patients: the clinician bills the practice, and each visit row names its patient.
+  const several = data.patientName === null;
+  const patientCount = new Set(data.items.map((i) => i.patientName)).size;
+  const billTo = data.patientName ?? data.practiceName;
   const money = (minor: number) => formatMoney(minor, data.country, data.currency);
 
   return (
     <Document title={`Invoice ${number}`} author={data.practiceName}>
       <Page size="A4" style={[kit.page, { fontFamily: PDF_FONT }]}>
-        <RunningHeader left={`Invoice ${number} · ${data.patientName}`} right={`${day(data.createdAt)} · ${data.clinicianName}`} />
+        <RunningHeader left={`Invoice ${number} · ${billTo}`} right={`${day(data.createdAt)} · ${data.clinicianName}`} />
         <Footer left={`${data.practiceName} · Invoice ${number} · Thank you.`} />
         <View style={s.head}>
           <Letterhead logo={logo} name={data.practiceName} lines={[data.clinicianName, data.clinicianEmail]} />
@@ -109,7 +116,8 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
             rows={[
               ["Invoice date", day(data.createdAt)],
               ["Payment due", data.dueLabel],
-              ["Bill to", data.patientName],
+              ["Bill to", billTo],
+              ...(several ? [["Patients", String(patientCount)] as [string, string]] : []),
               ...(data.patientPhone ? [["Phone", data.patientPhone] as [string, string]] : []),
               ...(data.patientAddress ? [["Address", data.patientAddress] as [string, string]] : []),
             ]}
@@ -119,14 +127,16 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
         <Section title="Visits">
           <Table
             columns={[
-              { label: "Date", width: "20%" },
-              { label: "Service", width: "40%" },
+              { label: "Date", width: several ? "15%" : "20%" },
+              ...(several ? [{ label: "Patient", width: "20%" }] : []),
+              { label: "Service", width: several ? "27%" : "40%" },
               { label: "Time in – out", width: "20%" },
-              { label: "Amount", width: "20%", align: "right" },
+              { label: "Amount", width: several ? "18%" : "20%", align: "right" as const },
             ]}
             rows={[
               ...data.items.map((item) => [
                 day(item.startsAt),
+                ...(several ? [item.patientName] : []),
                 `${item.typeOfCare} (${formatDuration(item.durationMinutes)})`,
                 `${time(item.timeIn ?? item.startsAt)}${item.timeOut ? ` – ${time(item.timeOut)}` : ""}`,
                 money(item.feeMinor),

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Mail, ReceiptText, Search, X } from "lucide-react";
+import { FileText, ListChecks, Mail, ReceiptText, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/empty-state";
@@ -58,16 +58,17 @@ export function InvoicesView({ country }: { country: string }) {
   }, [visits, query]);
 
   const chosen = useMemo(() => (visits ?? []).filter((v) => selected.has(v.id)), [visits, selected]);
-  // An invoice is for one patient: the first ticked visit decides who.
-  const patient = chosen[0] ? { id: chosen[0].patientId, name: chosen[0].patientName } : null;
-  // …and its currency: visits booked in another currency go on their own invoice.
+  // One invoice can cover visits for one patient or several (then it's billed to the practice).
+  const patientNames = [...new Set(chosen.map((v) => v.patientName))];
+  const several = new Set(chosen.map((v) => v.patientId)).size > 1;
+  const billedTo = several ? `${patientNames.length} patients` : (patientNames[0] ?? "");
+  // One currency per invoice: the first ticked visit decides; others go on their own invoice.
   const currency = chosen[0]?.currency;
   const totalMinor = chosen.reduce((sum, v) => sum + v.feeMinor, 0);
-  const moreForPatient = patient
-    ? (visits ?? []).filter(
-        (v) => v.patientId === patient.id && v.currency === currency && v.signed && v.invoiceNumber === null && !selected.has(v.id),
-      )
-    : [];
+  // Signed, not yet invoiced visits in the list as filtered, in the invoice's currency.
+  const isReady = (v: InvoiceableVisit) => v.signed && v.invoiceNumber === null;
+  const tickAllCurrency = currency ?? shown.find(isReady)?.currency;
+  const notTicked = shown.filter((v) => isReady(v) && v.currency === tickAllCurrency && !selected.has(v.id));
 
   function changePeriod(next: Period) {
     setPeriod(next);
@@ -114,7 +115,10 @@ export function InvoicesView({ country }: { country: string }) {
 
   return (
     <div className="grid grid-cols-1 gap-8 pb-24 md:pb-0">
-      <PageHeader title="Invoices" description="Tick signed visits to bill, then create the invoice. It can be emailed straight away." />
+      <PageHeader
+        title="Invoices"
+        description="Tick signed visits to bill, for one patient or several, then create one invoice. It can be emailed straight away."
+      />
 
       <section aria-labelledby="visits-heading" className="grid grid-cols-1 gap-4">
         <h2 id="visits-heading" className="sr-only">
@@ -151,6 +155,13 @@ export function InvoicesView({ country }: { country: string }) {
           </div>
         </div>
 
+        {chosen.length === 0 && notTicked.length > 1 && (
+          <Button variant="outline" className="w-fit" onClick={() => setSelected(new Set(notTicked.map((v) => v.id)))}>
+            <ListChecks className="size-4" aria-hidden />
+            Tick all {notTicked.length} ready to invoice
+          </Button>
+        )}
+
         {visits === null ? (
           <p className="rounded-lg border bg-card p-8 text-center text-muted-foreground">Loading your visits…</p>
         ) : shown.length === 0 ? (
@@ -161,10 +172,9 @@ export function InvoicesView({ country }: { country: string }) {
           <ul className="grid grid-cols-1 gap-2" aria-label="Visits">
             {shown.map((v) => {
               const invoiced = v.invoiceNumber !== null;
-              const otherPatient = patient !== null && v.patientId !== patient.id;
               const unsigned = !v.signed && !invoiced;
-              const otherCurrency = !otherPatient && currency !== undefined && v.currency !== currency;
-              const disabled = invoiced || otherPatient || unsigned || otherCurrency;
+              const otherCurrency = currency !== undefined && v.currency !== currency;
+              const disabled = invoiced || unsigned || otherCurrency;
               const start = new Date(v.startsAt);
               const checkboxId = `visit-${v.id}`;
               return (
@@ -182,7 +192,7 @@ export function InvoicesView({ country }: { country: string }) {
                       checked={selected.has(v.id)}
                       disabled={disabled}
                       onCheckedChange={(on) => toggle(v, on)}
-                      aria-describedby={otherPatient || unsigned || otherCurrency ? `${checkboxId}-why` : undefined}
+                      aria-describedby={unsigned || otherCurrency ? `${checkboxId}-why` : undefined}
                     />
                     <div className="w-20 shrink-0 text-sm sm:w-28">
                       <p className="font-medium">{formatDayShort(start)}</p>
@@ -204,13 +214,11 @@ export function InvoicesView({ country }: { country: string }) {
                           <Badge variant="warning">Sign the note to invoice</Badge>
                         )}
                       </div>
-                      {(otherPatient || unsigned || otherCurrency) && (
+                      {(unsigned || otherCurrency) && (
                         <p id={`${checkboxId}-why`} className="sr-only">
                           {unsigned
                             ? "Only signed visits can be invoiced."
-                            : otherCurrency
-                              ? "This visit was booked in another currency, so it goes on its own invoice."
-                              : "An invoice is for one patient at a time."}
+                            : "This visit was booked in another currency, so it goes on its own invoice."}
                         </p>
                       )}
                     </div>
@@ -223,25 +231,28 @@ export function InvoicesView({ country }: { country: string }) {
         )}
       </section>
 
-      {patient && (
+      {chosen.length > 0 && (
         <div
           role="region"
           aria-label="Selected visits"
           className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 border-t bg-card/95 px-4 py-3 shadow-lg backdrop-blur md:sticky md:bottom-6 md:rounded-lg md:border md:px-5">
           <div className="mx-auto flex max-w-content flex-wrap items-center gap-x-4 gap-y-2">
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium">{patient.name}</p>
+              <p className="truncate font-medium">
+                {billedTo}
+                {several && <span className="font-normal text-muted-foreground"> · billed to your practice</span>}
+              </p>
               <p className="text-sm text-muted-foreground">
                 {chosen.length} visit{chosen.length === 1 ? "" : "s"} · <span className="tabular-nums">{money(totalMinor, currency)}</span>
-                {moreForPatient.length > 0 && (
+                {notTicked.length > 0 && (
                   <>
                     {" · "}
                     <button
                       type="button"
                       className="font-medium text-primary underline underline-offset-4"
-                      onClick={() => setSelected(new Set([...selected, ...moreForPatient.map((v) => v.id)]))}
+                      onClick={() => setSelected(new Set([...selected, ...notTicked.map((v) => v.id)]))}
                     >
-                      Tick all {moreForPatient.length + chosen.length}
+                      Tick all {notTicked.length + chosen.length}
                     </button>
                   </>
                 )}
@@ -271,7 +282,10 @@ export function InvoicesView({ country }: { country: string }) {
                 <div className="w-16 shrink-0 font-heading text-lg text-primary">{label(inv.number)}</div>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2">
-                    <span className="truncate font-medium">{inv.patientName}</span>
+                    <span className="truncate font-medium">
+                      {inv.patientName}
+                      {inv.severalPatients && <span className="font-normal text-muted-foreground"> · billed to your practice</span>}
+                    </span>
                     {inv.status === "paid" && <Badge variant="success">Paid</Badge>}
                     {inv.status === "issue" && <Badge variant="danger">Issue</Badge>}
                   </p>
@@ -308,9 +322,11 @@ export function InvoicesView({ country }: { country: string }) {
         onOpenChange={setCreating}
         title="Create invoice"
         description="Check the details, then create the invoice."
-        summary={patient ? { patientName: patient.name, visits: chosen.length, total: money(totalMinor, currency) } : undefined}
+        summary={chosen.length ? { patientName: several ? patientNames.join(", ") : billedTo, visits: chosen.length, total: money(totalMinor, currency) } : undefined}
         withDue
-        defaultEmail={chosen[0]?.invoiceEmail ?? ""}
+        severalPatients={several}
+        // A patient's saved address only for an invoice to that patient.
+        defaultEmail={several ? "" : (chosen[0]?.invoiceEmail ?? "")}
         emailRequired={false}
         submitLabel={(hasEmail) => (hasEmail ? "Create and email" : "Create invoice")}
         onSubmit={create}
@@ -320,6 +336,7 @@ export function InvoicesView({ country }: { country: string }) {
         onOpenChange={(open) => !open && setResending(null)}
         title={resending ? `Email invoice ${label(resending.number)}` : "Email invoice"}
         description="We'll send the invoice as a PDF attachment."
+        severalPatients={resending?.severalPatients ?? false}
         defaultEmail={resending?.sentTo ?? ""}
         emailRequired
         submitLabel={() => "Send"}

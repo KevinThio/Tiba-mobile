@@ -384,9 +384,9 @@ export const invoices = pgTable(
       .notNull()
       .references(() => clinicians.id, { onDelete: "restrict" }),
     number: integer("number").notNull(),
-    patientId: uuid("patient_id")
-      .notNull()
-      .references(() => patients.id, { onDelete: "restrict" }),
+    // The patient billed. Null when the invoice covers visits for several patients: then the
+    // clinician bills the practice, and each visit (invoice_items) carries its own patient.
+    patientId: uuid("patient_id").references(() => patients.id, { onDelete: "restrict" }),
     totalMinor: integer("total_minor").notNull(),
     // ISO 4217 code, from the practice's country when the invoice was made. Kept on the invoice
     // so a later country change never changes an invoice already sent.
