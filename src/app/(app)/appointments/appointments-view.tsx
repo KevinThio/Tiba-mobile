@@ -338,7 +338,9 @@ function VisitRow({ visit: a, status }: { visit: AppointmentSummary; status: Sta
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{a.patientName}</span>
           <span className="block truncate text-small text-muted-foreground tabular-nums">
-            {formatTime(start)}–{formatTime(end)} · {a.typeOfCare}
+            {formatTime(start)}–{formatTime(end)}
+            {/* Overnight visits, such as a 24-hour aide shift. */}
+            {toDateKey(end) !== toDateKey(start) && " next day"} · {a.typeOfCare}
           </span>
         </span>
         <Badge variant={badge.variant}>{badge.label}</Badge>

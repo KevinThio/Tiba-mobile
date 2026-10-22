@@ -136,7 +136,7 @@ function NoteDocument({ data, timeZone }: { data: NoteData; timeZone: string }) 
 
   const details: [string, string][] = [
     ["Date", day(from)],
-    [data.timeIn && data.timeOut ? "Time in / out" : "Booked for", `${time(from)} – ${time(to)}`],
+    [data.timeIn && data.timeOut ? "Time in / out" : "Booked for", `${time(from)} – ${time(to)}${day(to) !== day(from) ? " next day" : ""}`],
     ["Date of birth", isoDay(data.dateOfBirth)],
     ["Practice", data.practiceName],
     ["Type of care", CARE_LABEL[care]],

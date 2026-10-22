@@ -8,8 +8,9 @@ const SHORT = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" 
 const TIME = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 const FORMATS = {
-  /** "16 Oct 2026 · 10:30–11:20" (needs `to`) */
-  visit: (from: Date, to?: Date) => `${DATE.format(from)} · ${TIME.format(from)}${to ? `–${TIME.format(to)}` : ""}`,
+  /** "16 Oct 2026 · 10:30–11:20", or "… 08:00–07:30 next day" for an overnight visit (needs `to`) */
+  visit: (from: Date, to?: Date) =>
+    `${DATE.format(from)} · ${TIME.format(from)}${to ? `–${TIME.format(to)}${DATE.format(to) !== DATE.format(from) ? " next day" : ""}` : ""}`,
   /** "11:22, 16 Oct" */
   signed: (at: Date) => `${TIME.format(at)}, ${SHORT.format(at)}`,
   /** "11:22" */

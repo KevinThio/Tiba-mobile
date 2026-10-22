@@ -4,6 +4,7 @@ import { Temporal } from "temporal-polyfill";
 import { db } from "@/db";
 import { appointments, clinicians, patients } from "@/db/schema";
 import { renderEmail, sendEmail } from "@/lib/email";
+import { formatDuration } from "@/lib/format";
 
 // "Tomorrow's appointments" emails to the clinician.
 // Sent on request from the Appointments page, and every evening by /api/cron/reminders
@@ -68,7 +69,7 @@ export async function sendTomorrowReminder(clinician: { id: string; name: string
     intro: count
       ? `Here's your day for ${label}.`
       : `You have no visits booked for ${label}. Enjoy the breathing room.`,
-    rows: visits.map((v) => [time(v.startsAt), `${shortName(v.patientName)} · ${v.typeOfCare} · ${v.durationMinutes} min`]),
+    rows: visits.map((v) => [time(v.startsAt), `${shortName(v.patientName)} · ${v.typeOfCare} · ${formatDuration(v.durationMinutes)}`]),
     outro: count ? "Open Tiba to see the full details." : undefined,
   });
   const result = await sendEmail({

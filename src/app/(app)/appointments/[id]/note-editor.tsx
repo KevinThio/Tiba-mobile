@@ -83,7 +83,9 @@ export function NoteEditor({ appointmentId, patientName, startsAt, durationMinut
     () => {
       const start = new Date(startsAt);
       const end = new Date(start.getTime() + durationMinutes * 60_000);
-      return `${KIND_LABEL[kind]} · ${DATE.format(start)} · ${TIME.format(start)}–${TIME.format(end)}`;
+      // Overnight visits (a 24-hour aide shift) end the next day.
+      const nextDay = DATE.format(end) !== DATE.format(start) ? " next day" : "";
+      return `${KIND_LABEL[kind]} · ${DATE.format(start)} · ${TIME.format(start)}–${TIME.format(end)}${nextDay}`;
     },
     () => KIND_LABEL[kind],
   );

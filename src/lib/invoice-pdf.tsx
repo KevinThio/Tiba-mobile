@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { appointments, clinicians, invoiceItems, invoices, patients, practices } from "@/db/schema";
 import { formatMoney } from "@/lib/countries";
+import { formatDuration } from "@/lib/format";
 import { DetailGrid, FERN, Footer, kit, Letterhead, RunningHeader, Section, Table } from "@/lib/pdf-kit";
 import { PDF_FONT } from "@/lib/pdf-fonts";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
@@ -126,7 +127,7 @@ function InvoiceDocument({ data }: { data: InvoiceData }) {
             rows={[
               ...data.items.map((item) => [
                 day(item.startsAt),
-                `${item.typeOfCare} (${item.durationMinutes} min)`,
+                `${item.typeOfCare} (${formatDuration(item.durationMinutes)})`,
                 `${time(item.timeIn ?? item.startsAt)}${item.timeOut ? ` – ${time(item.timeOut)}` : ""}`,
                 money(item.feeMinor),
               ]),

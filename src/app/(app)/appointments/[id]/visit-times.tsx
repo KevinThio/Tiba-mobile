@@ -20,19 +20,26 @@ const toTimeValue = (iso: string | null) => {
 export function VisitTimes({
   appointmentId,
   startsAt,
+  durationMinutes,
   initial,
   locked,
 }: {
   appointmentId: string;
   startsAt: string;
+  /** The booked length, so an overnight visit (an aide shift) also offers "now" on the day it ends. */
+  durationMinutes: number;
   initial: { timeIn: string | null; timeOut: string | null };
   locked: boolean;
 }) {
   const [times, setTimes] = useState(initial); // what the inputs show
   const [saved, setSaved] = useState(initial); // what the server has
   const [saving, setSaving] = useState<Field | null>(null);
-  // One-tap "now" only makes sense on the day of the visit; otherwise type the time.
-  const [isVisitDay] = useState(() => toDateKey(new Date()) === toDateKey(new Date(startsAt)));
+  // One-tap "now" only makes sense on the days the visit runs; otherwise type the time.
+  const [isVisitDay] = useState(() => {
+    const today = toDateKey(new Date());
+    const end = new Date(new Date(startsAt).getTime() + durationMinutes * 60_000);
+    return today === toDateKey(new Date(startsAt)) || today === toDateKey(end);
+  });
 
   async function save(field: Field, iso: string | null) {
     setSaving(field);
@@ -53,10 +60,14 @@ export function VisitTimes({
     }
   }
 
-  // A typed time is taken to be on the day of the visit.
-  function fromTimeValue(value: string) {
+  // A typed time is taken to be on the day of the visit. A time out at or before the time in is
+  // the next morning: overnight visits such as a 24-hour aide shift.
+  function fromTimeValue(field: Field, value: string) {
     if (!value) return null;
-    return new Date(`${toDateKey(new Date(startsAt))}T${value}`).toISOString();
+    const at = new Date(`${toDateKey(new Date(startsAt))}T${value}`);
+    const timeIn = times.timeIn ? new Date(times.timeIn) : null;
+    if (field === "timeOut" && timeIn && at <= timeIn) at.setDate(at.getDate() + 1);
+    return at.toISOString();
   }
 
   const rows: { field: Field; label: string; icon: typeof LogIn; now: string }[] = [
@@ -84,11 +95,11 @@ export function VisitTimes({
                   value={toTimeValue(times[field])}
                   disabled={locked || saving === field}
                   onChange={(e) => {
-                    const iso = fromTimeValue(e.target.value);
+                    const iso = fromTimeValue(field, e.target.value);
                     setTimes((t) => ({ ...t, [field]: iso }));
                   }}
                   onBlur={(e) => {
-                    const iso = fromTimeValue(e.target.value);
+                    const iso = fromTimeValue(field, e.target.value);
                     if (iso !== saved[field]) void save(field, iso);
                   }}
                   className="min-w-0 flex-1"

@@ -27,6 +27,8 @@ export type AppointmentSummary = {
   timeOut: string | null; // ISO
 };
 
+const MAX_VISIT_MINUTES = 24 * 60;
+
 export type PatientOption = { id: string; fullName: string; dateOfBirth: string; phone: string | null };
 
 const summaryColumns = {
@@ -138,7 +140,12 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const bookingSchema = z.object({
   startsAt: z.iso.datetime({ offset: true }),
-  durationMinutes: z.coerce.number().int().min(10).max(480),
+  // Up to 24 hours: aide (HHA) shifts can run a full day, and nursing visits several hours.
+  durationMinutes: z.coerce
+    .number()
+    .int()
+    .min(10, "A visit needs to be at least 10 minutes long.")
+    .max(MAX_VISIT_MINUTES, "A visit can be up to 24 hours long."),
   typeOfCare: z.string().trim().min(1, "Add the type of care, for example “Individual session”.").max(100),
   fee: z.string().trim(),
   patient: z.discriminatedUnion("kind", [

@@ -14,7 +14,10 @@ import { cn } from "@/lib/utils";
 import { createAppointment, type AppointmentSummary, type BookingInput } from "./actions";
 import { PatientPicker, type PatientChoice } from "./patient-picker";
 
-const DURATIONS = [30, 45, 50, 60, 90];
+// Length is hours plus minutes, up to 24 hours (aide shifts can run a full day).
+const HOURS = Array.from({ length: 25 }, (_, h) => h);
+const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
+const MAX_MINUTES = 24 * 60;
 const DEFAULT_CARE_TYPES = ["Individual session", "Couples session", "Family session", "Assessment", "Follow-up"];
 
 type Props = {
@@ -96,9 +99,18 @@ function BookingForm({
       setError("Add the date and time of the visit.");
       return;
     }
+    const durationMinutes = Number(form.get("durationHours")) * 60 + Number(form.get("durationMins"));
+    if (durationMinutes < 10) {
+      setError("A visit needs to be at least 10 minutes long.");
+      return;
+    }
+    if (durationMinutes > MAX_MINUTES) {
+      setError("A visit can be up to 24 hours long.");
+      return;
+    }
     const input: BookingInput = {
       startsAt: startsAt.toISOString(),
-      durationMinutes: Number(form.get("durationMinutes")),
+      durationMinutes,
       typeOfCare,
       fee,
       patient:
@@ -137,16 +149,26 @@ function BookingForm({
         <FormField label="Time" name="time" type="time" step={300} required />
       </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="durationMinutes">Length</Label>
-        <NativeSelect id="durationMinutes" name="durationMinutes" defaultValue="60">
-          {DURATIONS.map((m) => (
-            <NativeSelectOption key={m} value={m}>
-              {m} minutes
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
-      </div>
+      <fieldset className="grid gap-2">
+        <legend className="mb-2 text-sm font-medium">Length</legend>
+        <div className="flex flex-wrap items-center gap-2">
+          <NativeSelect aria-label="Hours" name="durationHours" defaultValue="1">
+            {HOURS.map((h) => (
+              <NativeSelectOption key={h} value={h}>
+                {h} {h === 1 ? "hour" : "hours"}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <NativeSelect aria-label="Minutes" name="durationMins" defaultValue="0">
+            {MINUTES.map((m) => (
+              <NativeSelectOption key={m} value={m}>
+                {m} min
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
+        <p className="text-small text-muted-foreground">Up to 24 hours, for long nursing visits and aide shifts.</p>
+      </fieldset>
 
       <div className="grid gap-2">
         <Label htmlFor="typeOfCare">Type of care</Label>

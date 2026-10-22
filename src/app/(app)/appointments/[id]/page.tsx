@@ -163,6 +163,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       <VisitTimes
         appointmentId={id}
         startsAt={visit.startsAt.toISOString()}
+        durationMinutes={visit.durationMinutes}
         initial={{ timeIn: visit.timeIn?.toISOString() ?? null, timeOut: visit.timeOut?.toISOString() ?? null }}
         locked={false}
       />

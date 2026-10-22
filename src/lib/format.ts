@@ -9,6 +9,14 @@ export function ageFrom(dateOfBirth: string, today = new Date()) {
   return age;
 }
 
+/** A visit's length: "50 min", "1 h", "1 h 30 min", "24 h". */
+export function formatDuration(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (!h) return `${m} min`;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
 /** Local calendar day of a Date as "YYYY-MM-DD" (not UTC, unlike toISOString). */
 export function toDateKey(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
