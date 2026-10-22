@@ -1,48 +1,32 @@
 import "server-only";
-import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
-import { appointments, clinicians, diagnosisCodes, noteAddenda, notes, noteVersions, patients, practices } from "@/db/schema";
-import { CARE_LABEL, noteTitle, type Care } from "@/lib/note-templates";
+import {
+  appointments,
+  clinicianProfiles,
+  clinicians,
+  diagnosisCodes,
+  locations,
+  noteAddenda,
+  notes,
+  noteVersions,
+  patients,
+  practices,
+} from "@/db/schema";
+import { disciplineLabel, isDiscipline } from "@/lib/disciplines";
+import { goalsFromEvaluation } from "@/lib/note-context";
+import { summarise } from "@/lib/note-summary";
+import { billableUnits, CARE_LABEL, getTemplate, noteTitle, type Care, type Field, type NoteKind } from "@/lib/note-templates";
+import { Answer, DetailGrid, Footer, kit, Letterhead, RunningHeader, Section, Signatures, Table } from "@/lib/pdf-kit";
 import { PDF_FONT } from "@/lib/pdf-fonts";
 import { parseLogoDataUrl } from "@/lib/practice-logo";
 import { isValidTimeZone } from "@/lib/reminders";
-import { isSignatureImage } from "@/lib/signature";
 
-// Signed note PDF with the practice letterhead (same layout as NoteLetterhead and the invoice
-// PDF): the written note, both signatures, then any addenda in date order. Only signed notes.
-
-const FERN = "#2D6A4F";
-const FERN_PALE = "#E6F2EB";
-const INK = "#25282D";
-const MUTED = "#686D76";
-const BORDER = "#DFE0E5";
-const AMBER = "#F3DCA3";
-
-const s = StyleSheet.create({
-  page: { paddingTop: 48, paddingHorizontal: 48, paddingBottom: 64, fontFamily: PDF_FONT, fontSize: 10.5, color: INK, lineHeight: 1.45 },
-  head: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: 18, borderBottomWidth: 1, borderBottomColor: BORDER },
-  logo: { height: 52, maxWidth: 110, objectFit: "contain" },
-  practice: { fontFamily: PDF_FONT, fontWeight: "bold", fontSize: 16, color: FERN, lineHeight: 1.2, marginBottom: 2 },
-  muted: { color: MUTED },
-  title: { fontFamily: PDF_FONT, fontWeight: "bold", fontSize: 18, color: FERN, marginTop: 22, lineHeight: 1.2 },
-  subtitle: { color: MUTED, marginTop: 4 },
-  details: { flexDirection: "row", flexWrap: "wrap", marginTop: 16, padding: 12, backgroundColor: FERN_PALE, borderRadius: 6 },
-  detail: { width: "33%", paddingVertical: 4, paddingRight: 8 },
-  label: { fontSize: 7.5, color: MUTED, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 2 },
-  bold: { fontFamily: PDF_FONT, fontWeight: "bold" },
-  body: { marginTop: 18 },
-  para: { marginBottom: 9 },
-  sigs: { flexDirection: "row", gap: 16, marginTop: 18 },
-  sig: { flex: 1, borderWidth: 1, borderColor: BORDER, borderRadius: 6, padding: 10 },
-  sigBox: { height: 58, justifyContent: "center", alignItems: "center", borderBottomWidth: 1, borderBottomColor: BORDER, marginVertical: 4 },
-  sigImage: { maxHeight: 54, maxWidth: "100%", objectFit: "contain" },
-  sigLine: { fontSize: 9, gap: 1 },
-  amended: { marginTop: 12, padding: 10, borderWidth: 1, borderColor: AMBER, borderRadius: 6, gap: 2 },
-  addenda: { marginTop: 22, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
-  addendum: { marginTop: 10 },
-  footer: { position: "absolute", left: 48, right: 48, bottom: 32, fontSize: 8, color: MUTED },
-});
+// Signed note PDF, laid out like the daily notes clinicians know from therapy record systems: a
+// running header, the patient's details, Diagnoses and Billing codes tables, the note's sections
+// under bold ruled headings (Subjective, Objective…), the written note, signatures with the
+// licence number, and any addenda. Only signed notes.
 
 /** Whose PDFs may be read: one clinician's own, or (for the admin) the whole practice's. */
 export type PdfScope = { clinicianId: string } | { practiceId: string };
@@ -53,6 +37,7 @@ export async function loadNoteForPdf(appointmentId: string, scope: PdfScope) {
       noteId: notes.id,
       kind: notes.kind,
       care: notes.care,
+      fields: notes.fields,
       body: notes.body,
       signedAt: notes.signedAt,
       version: notes.version,
@@ -65,11 +50,19 @@ export async function loadNoteForPdf(appointmentId: string, scope: PdfScope) {
       durationMinutes: appointments.durationMinutes,
       timeIn: appointments.timeIn,
       timeOut: appointments.timeOut,
+      patientId: patients.id,
       patientName: patients.fullName,
       dateOfBirth: patients.dateOfBirth,
+      startOfCare: patients.startOfCare,
+      practiceId: practices.id,
       practiceName: practices.name,
       logo: practices.logo,
+      practiceAddress: practices.letterheadAddress,
+      practicePhone: practices.letterheadPhone,
       clinicianName: clinicians.name,
+      discipline: clinicians.discipline,
+      licenseNumber: clinicianProfiles.licenseNumber,
+      locationName: locations.name,
       savedTimeZone: clinicians.timeZone,
     })
     .from(notes)
@@ -77,6 +70,8 @@ export async function loadNoteForPdf(appointmentId: string, scope: PdfScope) {
     .innerJoin(patients, eq(patients.id, appointments.patientId))
     .innerJoin(clinicians, eq(clinicians.id, appointments.clinicianId))
     .innerJoin(practices, eq(practices.id, clinicians.practiceId))
+    .leftJoin(clinicianProfiles, eq(clinicianProfiles.clinicianId, clinicians.id))
+    .leftJoin(locations, eq(locations.id, clinicians.locationId))
     .leftJoin(diagnosisCodes, eq(diagnosisCodes.code, notes.dxCode))
     .where(
       and(
@@ -86,140 +81,182 @@ export async function loadNoteForPdf(appointmentId: string, scope: PdfScope) {
       ),
     );
   if (!note?.signedAt) return null;
-  const addenda = await db
-    .select({ body: noteAddenda.body, createdAt: noteAddenda.createdAt })
-    .from(noteAddenda)
-    .where(eq(noteAddenda.noteId, note.noteId))
-    .orderBy(asc(noteAddenda.createdAt));
-  const versions = await db
-    .select({ version: noteVersions.version, signedAt: noteVersions.signedAt, reason: noteVersions.amendmentReason })
-    .from(noteVersions)
-    .where(eq(noteVersions.noteId, note.noteId))
-    .orderBy(asc(noteVersions.version));
-  return { ...note, signedAt: note.signedAt, addenda, versions };
+  const [addenda, versions, evaluation] = await Promise.all([
+    db
+      .select({ body: noteAddenda.body, createdAt: noteAddenda.createdAt })
+      .from(noteAddenda)
+      .where(eq(noteAddenda.noteId, note.noteId))
+      .orderBy(asc(noteAddenda.createdAt)),
+    db
+      .select({ version: noteVersions.version, signedAt: noteVersions.signedAt, reason: noteVersions.amendmentReason })
+      .from(noteVersions)
+      .where(eq(noteVersions.noteId, note.noteId))
+      .orderBy(asc(noteVersions.version)),
+    goalsFromEvaluation(note.patientId, note.care as Care, note.practiceId),
+  ]);
+  return { ...note, signedAt: note.signedAt, addenda, versions, goals: evaluation?.goals ?? [] };
 }
 
 type NoteData = NonNullable<Awaited<ReturnType<typeof loadNoteForPdf>>>;
+
+/** Billing codes as table rows: minutes per timed code with the total and its units, or the codes billed once. */
+function billingRows(field: Extract<Field, { type: "billing" }> | undefined, value: unknown) {
+  if (!field || typeof value !== "object" || value === null) return null;
+  const v = value as Record<string, unknown>;
+  if (field.mode === "once" || field.mode === "pickOne") {
+    const rows = field.codes.filter((c) => v[c.code] === true).map((c) => [c.code, c.label, "", "1"]);
+    return rows.length ? { rows, bold: [] } : null;
+  }
+  const used = field.codes.filter((c) => Number(v[c.code]) > 0);
+  if (!used.length) return null;
+  const minutes = used.reduce((sum, c) => sum + Number(v[c.code]), 0);
+  const rows = used.map((c) => [c.code, c.label, String(v[c.code]), ""]);
+  rows.push(["", field.mode === "units15" ? "Total (15-minute units)" : "Total timed minutes (8-minute rule)", String(minutes), String(billableUnits(minutes))]);
+  return { rows, bold: [rows.length - 1] };
+}
 
 function NoteDocument({ data, timeZone }: { data: NoteData; timeZone: string }) {
   const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone });
   const time = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
   const stamp = (d: Date) => `${day(d)}, ${time(d)}`;
+  const isoDay = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
   const logo = data.logo && parseLogoDataUrl(data.logo) ? data.logo : null;
   const care = data.care as Care;
-  const title = noteTitle(data.kind, care);
+  const kind = (data.kind as NoteKind | null) ?? "progress";
+  const template = getTemplate(kind, care);
+  // "Visit note (Physical therapy)", like the discipline in a daily note's title.
+  const title = `${noteTitle(kind, care)} (${CARE_LABEL[care]})`;
   const from = data.timeIn ?? data.startsAt;
   const to = data.timeOut ?? new Date(data.startsAt.getTime() + data.durationMinutes * 60_000);
-  const dob = new Date(`${data.dateOfBirth}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  const role = isDiscipline(data.discipline) ? disciplineLabel(data.discipline) : null;
+  const groups = summarise(template, data.fields ?? {}, data.goals).filter((g) => !g.answers.some((a) => a.id === "billing"));
+  const billingField = template.fields.find((f): f is Extract<Field, { type: "billing" }> => f.type === "billing");
+  const billing = billingRows(billingField, data.fields?.billing);
   const paragraphs = data.body.split(/\n{2,}/).filter((p) => p.trim());
-  const signatures = [
-    { label: "Clinician", name: data.clinicianName, image: data.clinicianSignature },
-    { label: "Patient", name: data.patientName, image: data.patientSignature },
+
+  const details: [string, string][] = [
+    ["Date", day(from)],
+    [data.timeIn && data.timeOut ? "Time in / out" : "Booked for", `${time(from)} – ${time(to)}`],
+    ["Date of birth", isoDay(data.dateOfBirth)],
+    ["Practice", data.practiceName],
+    ["Type of care", CARE_LABEL[care]],
+    ["Treating clinician", role ? `${data.clinicianName} · ${role}` : data.clinicianName],
   ];
+  if (data.locationName) details.push(["Location", data.locationName]);
+  if (data.startOfCare) details.push(["Start of care", isoDay(data.startOfCare)]);
 
   return (
     <Document title={`${title} · ${day(from)}`} author={data.practiceName}>
-      <Page size="A4" style={s.page}>
-        <View style={s.head}>
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt */}
-          {logo && <Image src={logo} style={s.logo} />}
-          <View>
-            <Text style={s.practice}>{data.practiceName}</Text>
-            <Text style={s.muted}>{data.clinicianName}</Text>
-          </View>
-        </View>
+      <Page size="A4" style={[kit.page, { fontFamily: PDF_FONT }]}>
+        <RunningHeader left={`${title} · ${data.patientName}`} right={`${day(from)} · ${data.clinicianName}`} />
+        <Footer left={`${data.practiceName} · Signed and locked · Private health information`} />
 
-        <Text style={s.title}>{title}</Text>
-        <Text style={s.subtitle}>
-          {CARE_LABEL[care]}
-          {data.dxCode ? ` · ${data.dxCode} ${data.dxDescription ?? ""}`.trimEnd() : ""}
-        </Text>
+        <Letterhead logo={logo} name={data.practiceName} lines={[[data.practiceAddress, data.practicePhone].filter(Boolean).join(" · ")]} />
+        <Text style={kit.title}>{title}</Text>
+
+        <Section title={data.patientName}>
+          <DetailGrid rows={details} />
+        </Section>
 
         {data.version > 1 && (
-          <View style={s.amended}>
-            <Text style={s.bold}>Amended note · version {data.version}</Text>
-            {data.amendmentReason && <Text>Reason: {data.amendmentReason}</Text>}
-            <Text style={s.muted}>
-              {data.versions.map((v) => `Version ${v.version} signed ${stamp(v.signedAt)}`).join(" · ")}. Earlier versions are
-              kept in Tiba.
+          <Section title={`Amended note · version ${data.version}`} keepTogether>
+            {data.amendmentReason && (
+              <Text>
+                <Text style={kit.bold}>Reason: </Text>
+                {data.amendmentReason}
+              </Text>
+            )}
+            <Text style={kit.muted}>
+              {data.versions.map((v) => `Version ${v.version} signed ${stamp(v.signedAt)}`).join(" · ")}. Earlier versions are kept in
+              Tiba.
             </Text>
-          </View>
+          </Section>
         )}
 
-        <View style={s.details}>
-          <View style={s.detail}>
-            <Text style={s.label}>Patient</Text>
-            <Text style={s.bold}>{data.patientName}</Text>
-          </View>
-          <View style={s.detail}>
-            <Text style={s.label}>Date of birth</Text>
-            <Text>{dob}</Text>
-          </View>
-          <View style={s.detail}>
-            <Text style={s.label}>Clinician</Text>
-            <Text>{data.clinicianName}</Text>
-          </View>
-          <View style={s.detail}>
-            <Text style={s.label}>Date</Text>
-            <Text>{day(from)}</Text>
-          </View>
-          <View style={s.detail}>
-            <Text style={s.label}>{data.timeIn && data.timeOut ? "Time in and out" : "Booked for"}</Text>
-            <Text>
-              {time(from)}–{time(to)}
-            </Text>
-          </View>
-          <View style={s.detail}>
-            <Text style={s.label}>Signed</Text>
-            <Text>{stamp(data.signedAt)}</Text>
-          </View>
-        </View>
+        {data.dxCode && (
+          <Section title="Diagnoses: ICD-10" keepTogether>
+            <Table
+              columns={[
+                { label: "Code", width: "18%" },
+                { label: "Diagnosis", width: "82%" },
+              ]}
+              rows={[[data.dxCode, data.dxDescription ?? ""]]}
+            />
+          </Section>
+        )}
 
-        <View style={s.body}>
+        {billing && (
+          <Section title="Billing codes" keepTogether>
+            <Table
+              columns={[
+                { label: "Code", width: "14%" },
+                { label: "Description", width: "52%" },
+                { label: "Minutes", width: "17%", align: "right" },
+                { label: "Units", width: "17%", align: "right" },
+              ]}
+              rows={billing.rows}
+              bold={billing.bold}
+            />
+          </Section>
+        )}
+
+        {groups.map((g) => (
+          <Section key={g.key || "session"} title={g.name ?? "Session"}>
+            {g.answers.map((a) =>
+              // A section with one answer of the same name ("Plan" under Plan) needs no sub-heading.
+              a.label === g.name ? (
+                <Text key={a.id}>{a.text}</Text>
+              ) : (
+                <Answer key={a.id} label={a.label} text={a.text} />
+              ),
+            )}
+          </Section>
+        ))}
+
+        <Section title="Written note">
           {paragraphs.map((p, i) => (
-            <Text key={i} style={s.para}>
+            <Text key={i} style={{ marginBottom: 6 }}>
               {p}
             </Text>
           ))}
-        </View>
+        </Section>
 
-        <View style={s.sigs} wrap={false}>
-          {signatures.map((sig) => (
-            <View key={sig.label} style={s.sig}>
-              <Text style={s.label}>{sig.label}</Text>
-              <View style={s.sigBox}>
-                {sig.image && isSignatureImage(sig.image) ? (
-                  // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt
-                  <Image src={sig.image} style={s.sigImage} />
-                ) : (
-                  <Text style={s.muted}>Didn&apos;t sign</Text>
-                )}
-              </View>
-              <View style={s.sigLine}>
-                <Text style={s.bold}>{sig.name}</Text>
-                {sig.image && <Text style={s.muted}>Signed electronically {stamp(data.signedAt)}</Text>}
-              </View>
-            </View>
-          ))}
-        </View>
+        <Section title="Signatures" keepTogether>
+          <Signatures
+            signers={[
+              {
+                image: data.clinicianSignature,
+                lines: [
+                  ["Clinician", role ? `${data.clinicianName} · ${role}` : data.clinicianName],
+                  ...(data.licenseNumber ? [["Licence #", data.licenseNumber] as [string, string]] : []),
+                  ["Electronically signed on", stamp(data.signedAt)],
+                ],
+              },
+              {
+                image: data.patientSignature,
+                empty: "Didn't sign",
+                lines: [
+                  ["Patient", data.patientName],
+                  ...(data.patientSignature ? [["Signed on the device", stamp(data.signedAt)] as [string, string]] : []),
+                ],
+              },
+            ]}
+          />
+        </Section>
 
         {data.addenda.length > 0 && (
-          <View style={s.addenda}>
-            <Text style={[s.bold, { color: FERN, fontSize: 12 }]}>Addenda</Text>
+          <Section title="Addenda">
             {data.addenda.map((a, i) => (
-              <View key={i} style={s.addendum} wrap={false}>
-                <Text style={s.label}>
+              <View key={i} wrap={false}>
+                <Text style={kit.sub}>
                   Added {stamp(a.createdAt)} by {data.clinicianName}
                 </Text>
                 <Text>{a.body}</Text>
               </View>
             ))}
-          </View>
+          </Section>
         )}
 
-        <Text style={s.footer} fixed>
-          {data.practiceName} · {title} · {data.patientName} · Signed and locked
-        </Text>
       </Page>
     </Document>
   );

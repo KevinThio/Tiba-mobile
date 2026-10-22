@@ -1,13 +1,22 @@
 import type { NextConfig } from "next";
 
+// The PDF fonts (src/lib/pdf-fonts.ts: DejaVu Sans and Tinos) are read from disk at runtime.
+const PDF_FONT_FILES = [
+  "./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans.ttf",
+  "./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf",
+  "./node_modules/@expo-google-fonts/tinos/400Regular/Tinos_400Regular.ttf",
+  "./node_modules/@expo-google-fonts/tinos/700Bold/Tinos_700Bold.ttf",
+  "./node_modules/@expo-google-fonts/tinos/400Regular_Italic/Tinos_400Regular_Italic.ttf",
+];
+
 const nextConfig: NextConfig = {
   // PGlite ships WASM and reads files at runtime, so it must not be bundled.
   serverExternalPackages: ["@electric-sql/pglite"],
-  // PDFs read the DejaVu font files at runtime (src/lib/pdf-fonts.ts), so deployments must ship
-  // them with the routes that make PDFs: the API routes, and Invoices (which emails them).
+  // Deployments ship the PDF fonts with the routes that make PDFs: the API routes, and Invoices
+  // (which emails them).
   outputFileTracingIncludes: {
-    "/api/**": ["./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans.ttf", "./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf"],
-    "/invoices": ["./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans.ttf", "./node_modules/dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf"],
+    "/api/**": PDF_FONT_FILES,
+    "/invoices": PDF_FONT_FILES,
   },
   // Keep the dev-only badge clear of the sidebar's Sign out button.
   devIndicators: { position: "bottom-right" },

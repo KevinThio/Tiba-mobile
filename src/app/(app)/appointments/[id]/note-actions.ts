@@ -78,6 +78,7 @@ export async function saveNoteDraft(input: z.input<typeof draftInput>): Promise<
 }
 
 export type Prefill =
+  // date: when the copied visit took place (ISO), not when its note was signed.
   | { ok: true; fields: Record<string, unknown>; dx: DiagnosisOption | null; date: string; author: string }
   | { ok: false; reason: "none" | "other-practice" };
 
@@ -105,7 +106,7 @@ export async function getPrefill(input: { appointmentId: string; kind: NoteKind;
       fields: notes.fields,
       dxCode: notes.dxCode,
       dxDescription: diagnosisCodes.description,
-      signedAt: notes.signedAt,
+      visitAt: appointments.startsAt,
       author: clinicians.name,
       authorPractice: clinicians.practiceId,
     })
@@ -122,12 +123,13 @@ export async function getPrefill(input: { appointmentId: string; kind: NoteKind;
         isNotNull(notes.signedAt),
       ),
     )
-    .orderBy(desc(notes.signedAt))
+    // The most recent visit, so a note signed late for an older visit isn't picked over a newer one.
+    .orderBy(desc(appointments.startsAt))
     .limit(1);
   if (!last) return { ok: false, reason: "none" };
   if (last.authorPractice !== clinician.practiceId) return { ok: false, reason: "other-practice" };
 
   const fields = Object.fromEntries(Object.entries(last.fields ?? {}).filter(([k]) => !NOT_PREFILLED.has(k)));
   const dx = last.dxCode ? { code: last.dxCode, description: last.dxDescription ?? "" } : null;
-  return { ok: true, fields, dx, date: last.signedAt!.toISOString(), author: last.author };
+  return { ok: true, fields, dx, date: last.visitAt.toISOString(), author: last.author };
 }
