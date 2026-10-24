@@ -13,6 +13,7 @@
     "db:seed": "tsx scripts/seed-diagnoses.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.133.0",
     "@base-ui/react": "1.8.0",
     "@electric-sql/pglite": "0.5.8",
     "@expo-google-fonts/tinos": "0.4.2",

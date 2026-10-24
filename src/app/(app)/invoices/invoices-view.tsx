@@ -235,6 +235,7 @@ export function InvoicesView({ country }: { country: string }) {
         <div
           role="region"
           aria-label="Selected visits"
+          data-action-bar
           className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 border-t bg-card/95 px-4 py-3 shadow-lg backdrop-blur md:sticky md:bottom-6 md:rounded-lg md:border md:px-5">
           <div className="mx-auto flex max-w-content flex-wrap items-center gap-x-4 gap-y-2">
             <div className="min-w-0 flex-1">

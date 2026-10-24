@@ -462,7 +462,7 @@ export function NoteEditor({ appointmentId, patientName, startsAt, durationMinut
       </div>
 
       {/* Phone: main buttons in a bar at the bottom of detail screens (spec v2 layout). */}
-      <div className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 flex gap-2 bg-card/95 px-5 py-3 shadow-up backdrop-blur md:hidden [&>button]:flex-1">
+      <div data-action-bar className="fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-20 flex gap-2 bg-card/95 px-5 py-3 shadow-up backdrop-blur md:hidden [&>button]:flex-1">
         {actions}
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { AssistantWidget } from "@/components/assistant-widget";
 import { requireClinician } from "@/lib/auth";
 import { contractCounts } from "@/lib/contract-data";
 import { notesToDoCounts } from "@/lib/notes";
@@ -22,6 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       badges={{ "/notes": toDo.needNote + toDo.drafts, "/notifications": unread, "/contracts": contracts.waiting }}
     >
       {children}
+      <AssistantWidget audience="clinician" withTabBar />
     </AppShell>
   );
 }

@@ -140,7 +140,7 @@ export function AppShell({
           </Link>
         </header>
 
-        <main className="mx-auto w-full max-w-content flex-1 px-5 pt-6 pb-28 md:px-10 md:py-10">{children}</main>
+        <main className="mx-auto w-full max-w-content flex-1 px-5 pt-6 pb-40 md:px-10 md:pt-10 md:pb-28">{children}</main>
 
         <nav
           aria-label="Main"

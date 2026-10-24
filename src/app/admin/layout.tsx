@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell";
+import { AssistantWidget } from "@/components/assistant-widget";
 import { requireAdmin } from "@/lib/auth";
 import { ADMIN_SECTIONS } from "@/components/nav-items";
 import { invoiceCounts, unbilledOverdue } from "@/lib/admin-billing";
@@ -35,6 +36,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       }}
     >
       {children}
+      <AssistantWidget audience="admin" withTabBar />
     </AppShell>
   );
 }

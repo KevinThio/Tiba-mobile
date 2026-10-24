@@ -45,6 +45,9 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
+      # Ask Tiba, the help assistant (console.anthropic.com).
+      - key: ANTHROPIC_API_KEY
+        sync: false
 
   # Hourly: evening "tomorrow's visits" emails and the admin's 30-day billing alerts.
   - type: cron

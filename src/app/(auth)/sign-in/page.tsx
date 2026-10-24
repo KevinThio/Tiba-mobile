@@ -4,6 +4,7 @@ import { ArrowRight, Loader2, Lock, Mail, MessageSquareHeart, PenLine, Star } fr
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AssistantWidget } from "@/components/assistant-widget";
 import { AuthHeading } from "@/components/auth-heading";
 import { FormAlert } from "@/components/form-alert";
 import { FormField } from "@/components/form-field";
@@ -150,6 +151,9 @@ export default function SignInPage() {
           </Button>
         </div>
       </section>
+      {/* Room to scroll the last card clear of the Ask Tiba button. */}
+      <div aria-hidden className="h-16" />
+      <AssistantWidget audience="public" />
     </>
   );
 }
