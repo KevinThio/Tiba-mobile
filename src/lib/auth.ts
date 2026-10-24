@@ -38,10 +38,15 @@ export const auth = betterAuth({
   }),
   // The public address is always trusted. In development, also accept the dev server's
   // other addresses: 127.0.0.1 and the computer's Wi-Fi address (for testing on a phone).
+  // A Vercel production deployment also answers on its own links (tiba-mobile-abc123-team…
+  // and the branch link), which the dashboard's Visit buttons open; trust those too. Preview
+  // deployments stay refused, so a branch can't sign anyone in to the live database.
   trustedOrigins:
     process.env.NODE_ENV === "development"
       ? ["http://localhost:*", "http://127.0.0.1:*", "http://192.168.*", "http://10.*"]
-      : [],
+      : process.env.VERCEL_ENV === "production"
+        ? [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL].filter(Boolean).map((host) => `https://${host}`)
+        : [],
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
