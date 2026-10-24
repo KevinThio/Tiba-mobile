@@ -176,11 +176,15 @@ A responsive web app, installable on phones as a PWA (no native app), where clin
   - `shadcn add` writes `import { cn } from "cn"` and installs the `cn` package (plus `next-themes` for sonner). We use `cn` from `@/lib/utils` (clsx + tailwind-merge) and have no theme switching, and ESLint errors on the `cn` import. After adding a component, fix its imports and `npm uninstall cn next-themes`.
   - Components that depend on `button` stop at a prompt asking to overwrite it. Back up `src/components/ui/button.tsx`, run `shadcn add <name> -y --overwrite`, then restore the button.
 
-**Dependencies** are pinned to exact versions that were at least two weeks old when added. Keep new ones pinned the same way.
+**Dependencies** are pinned to exact versions that were at least two weeks old when added. Keep new ones pinned the same way. **Security fixes are the exception:** when `npm audit` reports a critical or high flaw in a production dependency, take the OLDEST release that fixes it, pinned exactly, even if it is newer than two weeks (24 Oct 2026: next 16.4.1 for remote-code-execution flaws, zod 4.6.6, nodemailer 10.1.4). The four moderate findings left are in drizzle-kit, which only runs locally to write migrations.
+
+## Deployment
+
+[render.yaml](render.yaml) is a Render Blueprint (web app, Postgres 17 and an hourly cron job calling `/api/cron/reminders`, all in a US region); [docs/deploy.md](docs/deploy.md) is the launch guide and the HIPAA checklist (decided 24 Oct 2026: US first, pilot on test data). Every deploy runs `db:migrate` and `db:seed` first. The public address comes from `appUrl()` ([app-url.ts](src/lib/app-url.ts)): `BETTER_AUTH_URL`, else Render's `RENDER_EXTERNAL_URL`; use it for links in emails, never `process.env.BETTER_AUTH_URL` directly.
 
 ## Private health information
 
-Everything sits behind the login. Never put patient data in logs, URLs, query strings, or analytics. Dev mode would log every Server Action's arguments; `logging.serverFunctions: false` in `next.config.ts` turns that off, so keep it. `.data/` holds the local database and is git-ignored. Hosting is not decided yet: it depends on the market (Kenya Data Protection Act and/or HIPAA with a BAA).
+Everything sits behind the login. Never put patient data in logs, URLs, query strings, or analytics. **Security headers** are set for every response in `next.config.ts` (`securityHeaders`): a Content-Security-Policy without nonces (sign-in and sign-up are static pages; everything loads from Tiba itself, `unsafe-eval` only in development, no `upgrade-insecure-requests` so plain-HTTP testing works), HSTS, `X-Frame-Options: DENY` and `frame-ancestors none`, `nosniff`, `Referrer-Policy: no-referrer`, a Permissions-Policy turning off camera, microphone, location and payment, same-origin opener and resource policies, and no `X-Powered-By`. A new external script, font, image or API host must be added to the policy or the browser blocks it. `.gitignore` keeps out env files, keys, the database, dumps and backups, saved emails and documents (PDF, Word, Excel, CSV outside `data/`). Dev mode would log every Server Action's arguments; `logging.serverFunctions: false` in `next.config.ts` turns that off, so keep it. `.data/` holds the local database and is git-ignored. Hosting is not decided yet: it depends on the market (Kenya Data Protection Act and/or HIPAA with a BAA).
 
 ## Brand rules that affect code and copy
 

@@ -2,6 +2,7 @@ import "server-only";
 import { APIError } from "better-auth/api";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
+import { appUrl } from "@/lib/app-url";
 import { clinicians, practices } from "@/db/schema";
 import { isCountryCode } from "@/lib/countries";
 import { renderEmail, sendEmail } from "@/lib/email";
@@ -75,7 +76,7 @@ export async function notifyAdminsOfNewClinician(account: { name: string; email:
     .select({ email: clinicians.email, practiceName: clinicians.practiceName })
     .from(clinicians)
     .where(and(eq(clinicians.practiceId, account.practiceId), eq(clinicians.role, "admin")));
-  const base = process.env.BETTER_AUTH_URL ?? "";
+  const base = appUrl();
   for (const admin of admins) {
     const body = renderEmail({
       heading: "A clinician is waiting for you",
@@ -90,7 +91,7 @@ export async function notifyAdminsOfNewClinician(account: { name: string; email:
 
 /** Tells a clinician their account was activated. Failures are ignored; the activation stands. */
 export async function notifyClinicianActivated(clinician: { name: string; email: string; practiceName: string }) {
-  const base = process.env.BETTER_AUTH_URL ?? "";
+  const base = appUrl();
   const body = renderEmail({
     heading: "Your account is ready",
     intro: `${clinician.practiceName} has verified your Tiba account, ${clinician.name}. You can sign in and start seeing your appointments.`,

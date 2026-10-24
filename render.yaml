@@ -1,0 +1,68 @@
+# Render Blueprint for Tiba: the web app, its Postgres database and the hourly reminder job,
+# all in a US region. In Render: New → Blueprint → pick this repository. See docs/deploy.md.
+#
+# Pilot only until a BAA is in place: don't enter real patient information on this setup.
+# For HIPAA, move the workspace to a Render plan that signs a BAA (docs/deploy.md).
+
+databases:
+  - name: tiba-db
+    plan: basic-256mb
+    region: oregon
+    databaseName: tiba
+    user: tiba
+    postgresMajorVersion: "17"
+    # Only the app and the cron job (on Render's private network) can connect.
+    ipAllowList: []
+
+services:
+  - type: web
+    name: tiba
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build
+    # Runs before each deploy goes live: database migrations, then the diagnosis codes (safe to repeat).
+    preDeployCommand: npm run db:migrate && npm run db:seed
+    startCommand: npm start
+    healthCheckPath: /sign-in
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tiba-db
+          property: connectionString
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      # Filled in on the Render dashboard (never committed):
+      #   SMTP_URL        e.g. smtps://user:password@smtp-relay.brevo.com:465
+      #   EMAIL_FROM      e.g. "Tiba <you@example.com>"
+      #   BETTER_AUTH_URL only once a custom domain is connected, e.g. https://app.tibahealth.com
+      #                   (until then the app uses the onrender.com address Render gives it)
+      - key: SMTP_URL
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+  # Hourly: evening "tomorrow's visits" emails and the admin's 30-day billing alerts.
+  - type: cron
+    name: tiba-reminders
+    runtime: node
+    plan: starter
+    region: oregon
+    schedule: "0 * * * *"
+    buildCommand: "true"
+    startCommand: 'curl -fsS -H "Authorization: Bearer $CRON_SECRET" "http://$APP_HOSTPORT/api/cron/reminders"'
+    envVars:
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: tiba
+          envVarKey: CRON_SECRET
+      - key: APP_HOSTPORT
+        fromService:
+          type: web
+          name: tiba
+          property: hostport

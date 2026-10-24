@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { appUrl } from "@/lib/app-url";
 import { isCountryCode } from "@/lib/countries";
 import { renderEmail, sendEmail } from "@/lib/email";
 import { notifyAdminsOfNewClinician, placeNewAccount } from "@/lib/practice-join";
@@ -22,6 +23,8 @@ export const RESET_LINK_SECONDS = 60 * 60;
 const PROTECTED_FIELDS = ["role", "status", "practiceId", "practiceName", "country"];
 
 export const auth = betterAuth({
+  // The public address (BETTER_AUTH_URL, or Render's address until a domain is connected).
+  baseURL: appUrl() || undefined,
   appName: "Tiba",
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -33,7 +36,7 @@ export const auth = betterAuth({
       twoFactor: schema.twoFactors,
     },
   }),
-  // BETTER_AUTH_URL is always trusted. In development, also accept the dev server's
+  // The public address is always trusted. In development, also accept the dev server's
   // other addresses: 127.0.0.1 and the computer's Wi-Fi address (for testing on a phone).
   trustedOrigins:
     process.env.NODE_ENV === "development"

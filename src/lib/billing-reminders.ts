@@ -1,6 +1,7 @@
 import "server-only";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
+import { appUrl } from "@/lib/app-url";
 import { billingReminders, notifications, practices } from "@/db/schema";
 import { completedNotes, OVERDUE_DAYS, unbilledOverdue } from "@/lib/admin-billing";
 import { formatMoney } from "@/lib/countries";
@@ -29,7 +30,7 @@ export async function sendBillingReminder(admin: { id: string; email: string; pr
     `${days(n.signedAt!)} days`,
     `${shortName(n.patientName)} · ${date(n.startsAt)} · ${n.clinicianName} · ${formatMoney(n.feeMinor, practice?.country ?? "US", n.currency)}${n.insurer ? ` · ${n.insurer}` : ""}`,
   ]);
-  const base = process.env.BETTER_AUTH_URL ?? "";
+  const base = appUrl();
   const { html, text } = renderEmail({
     heading: `${waiting.length} ${waiting.length === 1 ? "note" : "notes"} to bill to insurance`,
     intro:
