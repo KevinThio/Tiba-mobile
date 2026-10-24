@@ -23,7 +23,7 @@ export const RESET_LINK_SECONDS = 60 * 60;
 const PROTECTED_FIELDS = ["role", "status", "practiceId", "practiceName", "country"];
 
 export const auth = betterAuth({
-  // The public address (BETTER_AUTH_URL, or Render's address until a domain is connected).
+  // The public address (BETTER_AUTH_URL, or the host's address until a domain is connected).
   baseURL: appUrl() || undefined,
   appName: "Tiba",
   database: drizzleAdapter(db, {

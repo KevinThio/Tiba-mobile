@@ -33,6 +33,38 @@ Plans and prices: the blueprint uses Render's small paid plans (`starter` web se
 job, `basic-256mb` Postgres), because free web services sleep and skip the pre-deploy step.
 Check render.com/pricing for current prices.
 
+### Or: deploy on Vercel
+
+Tiba is one Next.js app (pages, sign-in, database calls and Ask Tiba together), so on Vercel
+the whole app runs there. Vercel keeps no files between requests, so it needs a **hosted
+Postgres** database; without `DATABASE_URL` every page fails.
+
+1. **Database:** in the Vercel project, **Storage → Create Database → Neon** (Postgres), in a US
+   East region next to the app (`vercel.json` runs the app in `iad1`, Washington DC). Vercel
+   adds `DATABASE_URL` to the project. Any Postgres works (Supabase, Render's with outside
+   access allowed); use its pooled connection string.
+2. **Environment variables** (Settings → Environment Variables, for Production):
+   - `BETTER_AUTH_SECRET`: any 32+ random characters (`npx @better-auth/cli secret`).
+   - `CRON_SECRET`: another long random string. Vercel sends it to the reminder job itself.
+   - `SMTP_URL` and `EMAIL_FROM` (step 2), `GEMINI_API_KEY` (Ask Tiba, below).
+   - `BETTER_AUTH_URL` only once a custom domain is connected. Until then Tiba uses the
+     project's production address (`your-project.vercel.app`).
+3. **Redeploy** (Deployments → ⋯ → Redeploy). Production builds run `vercel-build`
+   ([scripts/vercel-build.mjs](../scripts/vercel-build.mjs)): migrations and diagnosis codes
+   first, then the build. Preview builds never touch the database.
+4. Sign up as the admin of a test practice on the production address.
+
+Notes:
+- **Reminders** run once a day at 02:00 UTC (`vercel.json`), which is evening across the US
+  and the most often Vercel's free Hobby plan allows. On Pro, change the schedule to
+  `0 * * * *` (hourly) so every time zone gets its evening email on time.
+- **Sign-in only works on the production address.** Preview deployments
+  (`…-git-branch-….vercel.app`) have other addresses, which Better Auth refuses.
+- Rate limits (sign-in explanations, reviews, Ask Tiba) are kept per server copy, so they are
+  looser on Vercel than on one Render server.
+- Vercel signs a HIPAA BAA only on its paid plans with the HIPAA add-on (check vercel.com);
+  until then, test data only, as with any pilot.
+
 ## 2. Email for the pilot
 
 Tiba sends password resets, invoices, reminders and "you're verified" emails over SMTP. Without a
@@ -52,7 +84,8 @@ Google Gemini (`gemini-3.5-flash-lite`, its fastest model; set `GEMINI_MODEL` to
 only gets Tiba's help guide and the question typed: no patient records, and nothing is stored.
 Create an API key at aistudio.google.com, **turn on billing for its Google Cloud project** (on
 the free tier Google may use prompts to improve its products) and set a budget alert, then set
-`GEMINI_API_KEY` on the `tiba` service and save. Test it from the sign-in
+`GEMINI_API_KEY` on the `tiba` service (or in the Vercel project's environment variables) and
+save. Test it from the sign-in
 page. Each person is limited to 60 questions per 10 minutes (15 per IP address when signed
 out). People are told not to type patient details, but someone might; before real patients,
 move the assistant to Gemini on Vertex AI under Google Cloud's BAA, or remove the button.
