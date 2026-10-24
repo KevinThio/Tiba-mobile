@@ -98,3 +98,6 @@ desktop.ini
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# The Vercel CLI's link to the project (team and project IDs).
+.vercel
