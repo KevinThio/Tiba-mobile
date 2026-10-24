@@ -52,7 +52,9 @@ function sameOrigin(request: Request) {
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return text("Ask Tiba only works from Tiba's own pages.", 403);
 
-  const session = await auth.api.getSession({ headers: request.headers });
+  // A help guide shouldn't go down with the database: if the session can't be read, answer as
+  // the public guide.
+  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
   const user = session?.user as { id: string; role?: string; status?: string } | undefined;
   const audience: AssistantAudience =
     user?.role === "admin" ? "admin" : user?.role === "clinician" && user.status === "active" ? "clinician" : "public";
