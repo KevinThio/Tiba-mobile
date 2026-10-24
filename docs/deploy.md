@@ -19,7 +19,7 @@ patients later without moving.
    - `tiba`: the web app. Every deploy runs migrations and loads the diagnosis codes first.
    - `tiba-reminders`: an hourly job for evening reminder emails and 30-day billing alerts.
    - Secrets `BETTER_AUTH_SECRET` and `CRON_SECRET` are generated for you.
-4. Render asks for **SMTP_URL**, **EMAIL_FROM** (see step 2 below) and **ANTHROPIC_API_KEY**
+4. Render asks for **SMTP_URL**, **EMAIL_FROM** (see step 2 below) and **GEMINI_API_KEY**
    (see "Ask Tiba" below). You can leave them empty for the first deploy: the app works, but
    password resets, invoice emails and reminders won't send, and Ask Tiba says it isn't set up,
    until they're filled in.
@@ -48,12 +48,14 @@ Save; Render redeploys. Test with **Forgot password** on the sign-in page.
 ### Ask Tiba (the help assistant)
 
 The **Ask Tiba** button on the sign-in page and in both apps answers how-to questions using
-Claude. It only gets Tiba's help guide and the question typed: no patient records, and nothing
-is stored. Create an API key at console.anthropic.com (add a small credit balance and a monthly
-spend limit), set `ANTHROPIC_API_KEY` on the `tiba` service and save. Test it from the sign-in
+Google Gemini (`gemini-3.5-flash-lite`, its fastest model; set `GEMINI_MODEL` to use another). It
+only gets Tiba's help guide and the question typed: no patient records, and nothing is stored.
+Create an API key at aistudio.google.com, **turn on billing for its Google Cloud project** (on
+the free tier Google may use prompts to improve its products) and set a budget alert, then set
+`GEMINI_API_KEY` on the `tiba` service and save. Test it from the sign-in
 page. Each person is limited to 60 questions per 10 minutes (15 per IP address when signed
 out). People are told not to type patient details, but someone might; before real patients,
-ask Anthropic about a BAA covering the API, or remove the button.
+move the assistant to Gemini on Vertex AI under Google Cloud's BAA, or remove the button.
 
 ## 3. Your own web address (when you have a domain)
 

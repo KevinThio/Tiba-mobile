@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { ApiError, FinishReason, GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 import { appUrl } from "@/lib/app-url";
 import { assistantSystemPrompt, type AssistantAudience } from "@/lib/assistant/guide";
@@ -6,11 +6,23 @@ import { auth } from "@/lib/auth";
 import { allow, clientIp } from "@/lib/rate-limit";
 
 // "Ask Tiba": the help assistant on the sign-in page and in both apps (POST, streams plain text).
-// It answers from Tiba's help guide only: no tools, no patient data, nothing stored or logged.
+// It answers from Tiba's help guide only, using Google Gemini: no tools, no patient data,
+// nothing stored or logged.
 // Who's asking (public, clinician or admin) comes from the session, never from the request.
 // Public: excluded in proxy.ts so the sign-in page can use it; rate-limited per IP.
 
-const MODEL = "claude-opus-5-5";
+// Google's fastest current model (Oct 2026). GEMINI_MODEL swaps it without a code change when
+// Google retires it.
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+
+/** Gemini stopped because of its safety or policy checks: say so plainly. */
+const STOPPED_FOR_SAFETY = new Set<FinishReason>([
+  FinishReason.SAFETY,
+  FinishReason.RECITATION,
+  FinishReason.BLOCKLIST,
+  FinishReason.PROHIBITED_CONTENT,
+  FinishReason.SPII,
+]);
 
 const bodySchema = z.object({
   messages: z
@@ -21,8 +33,8 @@ const bodySchema = z.object({
     .refine((m) => m.every((x, i) => x.role === (i % 2 === 0 ? "user" : "assistant")) && m.length % 2 === 1),
 });
 
-let client: Anthropic | null = null;
-const anthropic = () => (client ??= new Anthropic());
+let client: GoogleGenAI | null = null;
+const gemini = () => (client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }));
 
 const text = (body: string, status: number) =>
   new Response(body, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
@@ -52,8 +64,13 @@ export async function POST(request: Request) {
   }
 
   // The key comes from the environment: .env.local, or the host settings in production.
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
-    return text("Ask Tiba isn't set up yet. Ask your admin to add the assistant's key.", 503);
+  if (!process.env.GEMINI_API_KEY) {
+    return text(
+      process.env.NODE_ENV === "development"
+        ? "Ask Tiba needs a Gemini key: add GEMINI_API_KEY to .env.local, then restart npm run dev."
+        : "Ask Tiba isn't set up yet. Ask your admin to add the assistant's key.",
+      503,
+    );
   }
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
@@ -64,36 +81,47 @@ export async function POST(request: Request) {
     async start(controller) {
       const say = (s: string) => controller.enqueue(encoder.encode(s));
       try {
-        const reply = anthropic().beta.messages.stream({
+        const reply = await gemini().models.generateContentStream({
           model: MODEL,
-          max_tokens: 4000,
-          // Help answers are short chat: low effort keeps them quick (Opus 5.5 always thinks adaptively).
-          output_config: { effort: "low" },
-          // If a safety check declines, the API retries on a suitable model inside the same call.
-          betas: ["server-side-fallback-2026-07-01"],
-          fallbacks: "default",
-          // The guide is the same for every question of an audience: cache it.
-          system: [{ type: "text", text: assistantSystemPrompt(audience), cache_control: { type: "ephemeral" } }],
-          messages: parsed.data.messages,
+          contents: parsed.data.messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+          config: {
+            // The guide is the same for every question of an audience.
+            systemInstruction: assistantSystemPrompt(audience),
+            maxOutputTokens: 2000,
+            // Help answers are short chat: as little thinking as the model allows keeps them quick.
+            thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+            // Stop paying for an answer the person stopped or closed.
+            abortSignal: request.signal,
+          },
         });
-        for await (const event of reply) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") say(event.delta.text);
+        let finish: FinishReason | undefined;
+        let blocked = false;
+        for await (const chunk of reply) {
+          if (chunk.text) say(chunk.text);
+          finish = chunk.candidates?.[0]?.finishReason ?? finish;
+          if (chunk.promptFeedback?.blockReason) blocked = true;
         }
-        const final = await reply.finalMessage();
-        if (final.stop_reason === "refusal") say("\n\nSorry, I can't help with that one. Try asking about how to use Tiba.");
-        else if (final.stop_reason === "max_tokens") say("…");
+        if (blocked || (finish && STOPPED_FOR_SAFETY.has(finish))) {
+          say("\n\nSorry, I can't help with that one. Try asking about how to use Tiba.");
+        } else if (finish === FinishReason.MAX_TOKENS) say("…");
       } catch (error) {
+        if (request.signal.aborted) return;
         // Never log the question or answer: they can contain patient details someone typed.
-        console.error("Ask Tiba failed:", error instanceof Anthropic.APIError ? `${error.status} ${error.name}` : "unexpected error");
+        console.error("Ask Tiba failed:", error instanceof ApiError ? `${error.status} ${error.name}` : "unexpected error");
+        const status = error instanceof ApiError ? error.status : 0;
         say(
-          error instanceof Anthropic.AuthenticationError
-            ? "Ask Tiba isn't set up yet. Ask your admin to add the assistant's key."
-            : error instanceof Anthropic.RateLimitError
+          status === 400 || status === 401 || status === 403
+            ? "Ask Tiba isn't set up yet. Ask your admin to check the assistant's key."
+            : status === 429
               ? "Ask Tiba is busy right now. Please try again in a minute."
               : "Sorry, something went wrong on our side. Please try again.",
         );
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // Already closed because the person left.
+        }
       }
     },
   });
