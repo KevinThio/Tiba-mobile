@@ -6,7 +6,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { clinicians, verifications } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { EmailNotConfiguredError } from "@/lib/email";
+import { emailConfigured, EmailNotConfiguredError } from "@/lib/email";
+import { resetEmailFailed } from "@/lib/reset-email-status";
 
 const RESEND_AFTER_SECONDS = 60;
 
@@ -19,6 +20,8 @@ export type ResetRequestResult =
  * way), Tiba tells people when no account uses the email, as the spec's sign-in does
  * ("We couldn't find an account for that email"). One link per account per minute.
  */
+const NOT_SET_UP = "Email isn't set up for Tiba yet, so we can't send the link. Ask your practice admin for help.";
+
 export async function requestPasswordResetLink(input: { email: string }): Promise<ResetRequestResult> {
   const parsed = z.email().safeParse(input.email.trim().toLowerCase());
   if (!parsed.success) return { ok: false, field: "email", message: "Add an @, e.g. sam@clinic.com." };
@@ -54,6 +57,10 @@ export async function requestPasswordResetLink(input: { email: string }): Promis
     };
   }
 
+  if (!emailConfigured()) {
+    return { ok: false, message: NOT_SET_UP };
+  }
+
   try {
     await auth.api.requestPasswordReset({
       body: { email, redirectTo: "/reset-password" },
@@ -64,9 +71,12 @@ export async function requestPasswordResetLink(input: { email: string }): Promis
       ok: false,
       message:
         error instanceof EmailNotConfiguredError
-          ? "Email isn't set up for Tiba yet, so we can't send the link. Ask your practice admin for help."
+          ? NOT_SET_UP
           : "We couldn't send the link just now. Check your connection and try again.",
     };
+  }
+  if (resetEmailFailed(account.id)) {
+    return { ok: false, message: "We couldn't send the link just now. Please try again in a few minutes." };
   }
   return { ok: true };
 }

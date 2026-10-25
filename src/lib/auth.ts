@@ -11,6 +11,7 @@ import * as schema from "@/db/schema";
 import { appUrl } from "@/lib/app-url";
 import { isCountryCode } from "@/lib/countries";
 import { renderEmail, sendEmail } from "@/lib/email";
+import { noteResetEmailFailed } from "@/lib/reset-email-status";
 import { notifyAdminsOfNewClinician, placeNewAccount } from "@/lib/practice-join";
 
 // The device is handed to patients to sign, so sessions end after this much inactivity.
@@ -62,7 +63,12 @@ export const auth = betterAuth({
         action: { label: "Set a new password", url },
         outro: "If you didn't ask for this, you can ignore this email. Your password stays the same.",
       });
-      await sendEmail({ to: user.email, subject: "Reset your Tiba password", ...body });
+      try {
+        await sendEmail({ to: user.email, subject: "Reset your Tiba password", ...body });
+      } catch (error) {
+        noteResetEmailFailed(user.id);
+        throw error;
+      }
     },
   },
   user: {

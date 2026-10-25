@@ -23,6 +23,9 @@ export class EmailNotConfiguredError extends Error {
   }
 }
 
+/** Whether Tiba can send email here (production needs SMTP_URL; development saves to the outbox). */
+export const emailConfigured = () => Boolean(process.env.SMTP_URL) || process.env.NODE_ENV !== "production";
+
 export async function sendEmail(email: Email): Promise<{ via: "smtp" | "outbox" }> {
   const from = process.env.EMAIL_FROM ?? "Tiba <no-reply@tiba.local>";
   const smtpUrl = process.env.SMTP_URL;

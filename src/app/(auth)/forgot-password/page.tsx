@@ -2,7 +2,7 @@
 
 import { MailCheck } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AuthHeading } from "@/components/auth-heading";
 import { FormAlert } from "@/components/form-alert";
 import { FormField } from "@/components/form-field";
@@ -14,11 +14,15 @@ export default function ForgotPasswordPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [error, setError] = useState<{ field?: "email"; message: string } | null>(null);
   const [pending, setPending] = useState(false);
+  // Only the latest request may update the page (an earlier, slower reply mustn't show its error).
+  const latest = useRef(0);
 
   async function send(address: string) {
+    const request = ++latest.current;
     setPending(true);
     setError(null);
     const result = await requestPasswordResetLink({ email: address }).catch(() => null);
+    if (request !== latest.current) return;
     setPending(false);
     if (!result) {
       setError({ message: "We couldn't send the link just now. Check your connection and try again." });
