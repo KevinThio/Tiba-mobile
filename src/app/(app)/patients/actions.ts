@@ -8,6 +8,7 @@ import { diagnosisCodes, patientDiagnoses, patients } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 import { notifyAdmins } from "@/lib/notifications";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
+import { savePatientDetails, type PatientDetailsInput, type PatientDetailsResult } from "@/lib/patient-edit";
 import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
 
 export type DuplicateMatch = { id: string; name: string; dateOfBirth: string };
@@ -106,4 +107,15 @@ export async function addPatientAsClinician(input: ClinicianAddPatientInput): Pr
   revalidatePath("/patients");
   revalidatePath("/", "layout");
   return { ok: true, id, name: v.fullName };
+}
+
+/**
+ * Edit details on a patient record: any clinician in the practice can correct what was entered
+ * wrong, as the patient list is shared (spec v2).
+ */
+export async function updatePatientDetailsAsClinician(input: PatientDetailsInput): Promise<PatientDetailsResult> {
+  const clinician = await requireClinician();
+  const result = await savePatientDetails(clinician.practiceId, input);
+  if (result.ok) revalidatePath("/", "layout");
+  return result;
 }

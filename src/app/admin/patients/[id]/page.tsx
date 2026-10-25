@@ -3,6 +3,7 @@ import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { EditPatientDetails } from "@/components/edit-patient-details";
 import { FileList } from "@/components/file-list";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import { requireAdmin } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
 import { insurersFor, SERVICES } from "@/lib/patient-options";
 import { practiceBilling } from "@/lib/practice";
+import { searchDiagnosisCodes, updatePatientDetails } from "../actions";
 import { CareForm, StatusButton } from "./patient-forms";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -105,7 +107,23 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
 
       <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
         <section className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
-          <h2 className="text-h3">Details</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-h3">Details</h2>
+            <EditPatientDetails
+              patient={{
+                id: patient.id,
+                fullName: patient.fullName,
+                dateOfBirth: patient.dateOfBirth,
+                phone: patient.phone,
+                email: patient.email,
+                orderingDoctor: patient.orderingDoctor,
+                servicesOrdered: patient.servicesOrdered,
+                diagnoses,
+              }}
+              save={updatePatientDetails}
+              search={searchDiagnosisCodes}
+            />
+          </div>
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Detail label="Date of birth">
               {DATE.format(new Date(`${patient.dateOfBirth}T00:00:00Z`))} · {ageFrom(patient.dateOfBirth)}

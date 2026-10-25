@@ -8,6 +8,7 @@ import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, p
 import { requireAdmin } from "@/lib/auth";
 import { clearNotifications } from "@/lib/notifications";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
+import { savePatientDetails, type PatientDetailsInput, type PatientDetailsResult } from "@/lib/patient-edit";
 import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
 
 export type DiagnosisOption = { code: string; description: string };
@@ -272,4 +273,12 @@ export async function updatePatientCare(input: z.input<typeof careInput>): Promi
   if (!updated.length) return { ok: false, message: "We couldn't find that patient. Please refresh the page." };
   revalidatePath("/admin/patients");
   return { ok: true };
+}
+
+/** Patient details → Edit details: corrects the name, date of birth, contact, services and diagnoses. */
+export async function updatePatientDetails(input: PatientDetailsInput): Promise<PatientDetailsResult> {
+  const admin = await requireAdmin();
+  const result = await savePatientDetails(admin.practiceId, input);
+  if (result.ok) revalidatePath("/", "layout");
+  return result;
 }

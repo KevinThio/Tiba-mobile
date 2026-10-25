@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { DownloadPdfButton } from "@/components/download-pdf-button";
+import { EditPatientDetails } from "@/components/edit-patient-details";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { RelativeDay } from "@/components/relative-day";
@@ -13,6 +14,8 @@ import { ageFrom } from "@/lib/format";
 import { CARE_LABEL, careFromTypeOfCare, type Care } from "@/lib/note-templates";
 import { SERVICES } from "@/lib/patient-options";
 import { careTeam, patientRecord, type VisitStatus } from "@/lib/patients";
+import { searchNoteDiagnoses } from "../../appointments/[id]/note-actions";
+import { updatePatientDetailsAsClinician } from "../actions";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const MONTH = new Intl.DateTimeFormat("en-GB", { month: "short", year: "numeric", timeZone: "UTC" });
@@ -113,7 +116,25 @@ export default async function PatientRecordPage({ params }: PageProps<"/patients
       )}
 
       <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
-        <Card title="Details">
+        <Card
+          title="Details"
+          action={
+            <EditPatientDetails
+              patient={{
+                id: patient.id,
+                fullName: patient.fullName,
+                dateOfBirth: patient.dateOfBirth,
+                phone: patient.phone,
+                email: patient.email,
+                orderingDoctor: patient.orderingDoctor,
+                servicesOrdered: patient.servicesOrdered,
+                diagnoses,
+              }}
+              save={updatePatientDetailsAsClinician}
+              search={searchNoteDiagnoses}
+            />
+          }
+        >
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Detail label="Date of birth">{DATE.format(new Date(patient.dateOfBirth))}</Detail>
             <Detail label="Phone">{patient.phone ?? <Missing />}</Detail>
@@ -243,10 +264,27 @@ export default async function PatientRecordPage({ params }: PageProps<"/patients
   );
 }
 
-function Card({ title, className, children }: { title: string; className?: string; children: React.ReactNode }) {
+function Card({
+  title,
+  action,
+  className,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className={`grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6 ${className ?? ""}`}>
-      <h2 className="text-h3">{title}</h2>
+      {action ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-h3">{title}</h2>
+          {action}
+        </div>
+      ) : (
+        <h2 className="text-h3">{title}</h2>
+      )}
       {children}
     </section>
   );
