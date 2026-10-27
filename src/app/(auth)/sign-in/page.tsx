@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Loader2, Lock, Mail, MessageSquareHeart, PenLine, Star } from "lucide-react";
+import { ArrowRight, Loader2, Lock, Mail, MessageSquareHeart, PenLine, Star, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -138,9 +138,13 @@ export default function SignInPage() {
           Are you a patient?
         </h2>
         <p className="text-small text-muted-foreground">
-          Tell the practice how your visits went. Only the practice admin reads reviews.
+          Sign in to message your practice, or tell them how your visits went. Only the practice admin reads reviews.
         </p>
         <div className="flex flex-wrap gap-2">
+          <Button nativeButton={false} render={<Link href="/patient/sign-in" />}>
+            <UserRound aria-hidden />
+            Patient sign in
+          </Button>
           <Button variant="secondary" nativeButton={false} render={<Link href="/review" />}>
             <PenLine aria-hidden />
             Leave a review
