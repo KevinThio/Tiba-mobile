@@ -12,7 +12,7 @@ import { appUrl } from "@/lib/app-url";
 import { isCountryCode } from "@/lib/countries";
 import { renderEmail, sendEmail } from "@/lib/email";
 import { noteResetEmailFailed } from "@/lib/reset-email-status";
-import { notifyAdminsOfNewClinician, placeNewAccount } from "@/lib/practice-join";
+import { notifyAdminsOfPortalRequest, notifyAdminsOfNewClinician, placeNewAccount } from "@/lib/practice-join";
 
 // The device is handed to patients to sign, so sessions end after this much inactivity.
 // Each request older than SESSION_REFRESH_SECONDS pushes the expiry forward again.
@@ -21,7 +21,7 @@ const SESSION_REFRESH_SECONDS = 5 * 60;
 /** How long a password reset link works. */
 export const RESET_LINK_SECONDS = 60 * 60;
 
-const PROTECTED_FIELDS = ["role", "status", "practiceId", "practiceName", "country"];
+const PROTECTED_FIELDS = ["role", "status", "practiceId", "practiceName", "country", "birthDate"];
 
 export const auth = betterAuth({
   // The public address (BETTER_AUTH_URL, or the host's address until a domain is connected).
@@ -80,11 +80,24 @@ export const auth = betterAuth({
       practiceId: { type: "string", required: false, input: false },
       status: { type: ["pending", "active", "deactivated"], required: false, input: false, defaultValue: "pending" },
       // Spec v2: picked at sign-up and never changed by the user (see databaseHooks below).
+      // "patient" accounts come from the patient portal's own sign-up page.
       role: {
-        type: ["clinician", "admin"],
+        type: ["clinician", "admin", "patient"],
         required: true,
         defaultValue: "clinician",
-        validator: { input: z.enum(["clinician", "admin"]) },
+        validator: { input: z.enum(["clinician", "admin", "patient"]) },
+      },
+      // Patient portal sign-up only: the date of birth, which the admin checks against the record.
+      birthDate: {
+        type: "string",
+        required: false,
+        validator: {
+          input: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick your date of birth.")
+            .refine((d) => d <= new Date().toISOString().slice(0, 10), "Your date of birth can't be in the future.")
+            .optional(),
+        },
       },
       // ISO 3166-1 code of the practice's country (any country; sets the currency).
       country: {
@@ -98,10 +111,14 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        // Create the practice (admin) or join one and wait for verification (clinician).
+        // Create the practice (admin), or join one and wait for the admin (clinician, patient).
         // Throws an APIError with a code the sign-up page explains.
         before: async (user) => ({ data: { ...user, ...(await placeNewAccount(user)) } }),
         after: async (user) => {
+          if (user.role === "patient") {
+            await notifyAdminsOfPortalRequest(String(user.id), String(user.practiceId)).catch(() => undefined);
+            return;
+          }
           await notifyAdminsOfNewClinician({
             name: user.name,
             email: user.email,
@@ -128,7 +145,7 @@ export const auth = betterAuth({
   plugins: [twoFactor({ issuer: "Tiba" }), nextCookies()],
 });
 
-export type Role = "clinician" | "admin";
+export type Role = "clinician" | "admin" | "patient";
 
 /** The signed-in account of either type, or a redirect to sign in. Only for things both apps share, like practice details. */
 export async function requireAccount() {
@@ -147,6 +164,8 @@ export async function requireAccount() {
  */
 export function homeFor(user: { role: string; status?: string | null }) {
   if (user.role === "admin") return "/admin";
+  // The portal shows a patient's own state (waiting, turned off or their messages).
+  if (user.role === "patient") return "/portal";
   return user.status === "active" ? "/appointments" : "/pending";
 }
 
@@ -159,6 +178,20 @@ export async function requireClinician() {
   const user = await requireAccount();
   if (user.role !== "clinician" || user.status !== "active") redirect(homeFor(user));
   return user;
+}
+
+/**
+ * Returns the signed-in patient portal account, or sends staff to their own app. Patients see only
+ * their own conversation with the practice; check `status === "active"` before showing or
+ * accepting messages.
+ */
+export async function requirePatient() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect("/patient/sign-in");
+  const user = session.user;
+  if (user.role !== "patient") redirect(homeFor(user));
+  if (!user.practiceId) throw new Error("Account has no practice.");
+  return { ...user, practiceId: user.practiceId, status: user.status ?? "pending" };
 }
 
 /** Returns the signed-in administrator. Clinicians are sent back to their app. Use in every admin page and Server Action. */

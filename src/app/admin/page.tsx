@@ -1,4 +1,4 @@
-import { ChevronRight, CircleAlert, FilePen, FileSignature, Landmark, ReceiptText, Star, UserPlus, UserX, UsersRound, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, FilePen, FileSignature, Landmark, MessagesSquare, ReceiptText, Star, UserPlus, UserRoundCheck, UserX, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { invoiceCounts, OVERDUE_DAYS, unbilledOverdue } from "@/lib/admin-billin
 import { requireAdmin } from "@/lib/auth";
 import { unreadOfTypes } from "@/lib/notifications";
 import { agreementsToSign, deactivatedClinicians, oldestNewReview, visitsAroundToday } from "@/lib/overview";
+import { portalCounts } from "@/lib/portal";
 import { newReviewCount, pendingClinicianCount, possibleDuplicates } from "@/lib/practice";
 import { TodayVisits } from "./today-visits";
 
@@ -45,7 +46,7 @@ export default async function AdminOverviewPage() {
     oldestNewReview(practiceId),
     visitsAroundToday(practiceId),
   ]);
-  const contractNews = await unreadOfTypes(id, ["contract_message", "contract_signed"]);
+  const [contractNews, portal] = await Promise.all([unreadOfTypes(id, ["contract_message", "contract_signed"]), portalCounts(practiceId)]);
 
   const items: Attention[] = [];
   if (waiting > 0) {
@@ -55,6 +56,24 @@ export default async function AdminOverviewPage() {
       title: `${waiting === 1 ? "1 clinician is" : `${waiting} clinicians are`} waiting to be verified`,
       detail: "They signed up with your practice name and can't see patients until you activate them.",
       badge: { label: "Verify", variant: "warning" },
+    });
+  }
+  if (portal.requests > 0) {
+    items.push({
+      href: "/admin/messages",
+      icon: UserRoundCheck,
+      title: `${portal.requests === 1 ? "1 patient is" : `${portal.requests} patients are`} asking to join the patient portal`,
+      detail: "Check it's really your patient before they can message you.",
+      badge: { label: "Confirm", variant: "warning" },
+    });
+  }
+  if (portal.unread > 0) {
+    items.push({
+      href: "/admin/messages",
+      icon: MessagesSquare,
+      title: `${portal.unread === 1 ? "1 new message" : `${portal.unread} new messages`} from patients`,
+      detail: "Patients wrote to you from the patient portal.",
+      badge: { label: "New", variant: "info" },
     });
   }
   if (unbilled.count > 0) {

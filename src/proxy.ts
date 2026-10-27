@@ -7,8 +7,12 @@ import { NextResponse, type NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   if (!getSessionCookie(request)) {
     // Come back to this page after signing in (sign-in checks it stays inside Tiba).
-    const signIn = new URL("/sign-in", request.url);
+    // The patient portal has its own sign-in page.
     const { pathname, search } = request.nextUrl;
+    if (pathname === "/portal" || pathname.startsWith("/portal/")) {
+      return NextResponse.redirect(new URL("/patient/sign-in", request.url));
+    }
+    const signIn = new URL("/sign-in", request.url);
     if (pathname !== "/") signIn.searchParams.set("next", pathname + search);
     return NextResponse.redirect(signIn);
   }
@@ -17,6 +21,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api/cron|api/assistant|sign-in|sign-up|forgot-password|reset-password|review|_next/static|_next/image|icons|icon.svg|manifest.webmanifest|favicon.ico).*)",
+    "/((?!api/auth|api/cron|api/assistant|patient/|sign-in|sign-up|forgot-password|reset-password|review|_next/static|_next/image|icons|icon.svg|manifest.webmanifest|favicon.ico).*)",
   ],
 };

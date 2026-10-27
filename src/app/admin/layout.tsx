@@ -4,12 +4,13 @@ import { requireAdmin } from "@/lib/auth";
 import { ADMIN_SECTIONS } from "@/components/nav-items";
 import { invoiceCounts, unbilledOverdue } from "@/lib/admin-billing";
 import { unreadNotificationCount, unreadOfTypes } from "@/lib/notifications";
+import { portalCounts } from "@/lib/portal";
 import { newReviewCount, pendingClinicianCount, possibleDuplicates, practiceLogoUrlFor } from "@/lib/practice";
 
 /** Admin app (spec v2 section 5). Clinicians are sent back to their app by requireAdmin(). */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { id, name, practiceName, practiceId } = await requireAdmin();
-  const [logoUrl, pending, newReviews, duplicates, unread, invoiceTotals, unbilled, contractNews] = await Promise.all([
+  const [logoUrl, pending, newReviews, duplicates, unread, invoiceTotals, unbilled, contractNews, portal] = await Promise.all([
     practiceLogoUrlFor(practiceId),
     pendingClinicianCount(practiceId),
     newReviewCount(practiceId),
@@ -18,6 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     invoiceCounts(practiceId),
     unbilledOverdue(practiceId),
     unreadOfTypes(id, ["contract_message", "contract_signed"]),
+    portalCounts(practiceId),
   ]);
 
   return (
@@ -33,6 +35,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         [ADMIN_SECTIONS.invoices.href]: invoiceTotals.unseen,
         [ADMIN_SECTIONS.billing.href]: unbilled.count,
         [ADMIN_SECTIONS.contracts.href]: contractNews.length,
+        [ADMIN_SECTIONS.messages.href]: portal.requests + portal.unread,
       }}
     >
       {children}

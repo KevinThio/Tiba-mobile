@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   MapPin,
   Menu,
+  MessagesSquare,
   ReceiptText,
   Settings,
   Star,
@@ -69,6 +70,7 @@ export const ADMIN_SECTIONS = {
   performance: { href: "/admin/performance", label: "Performance", icon: ChartColumn, overline: "Practice performance", description: "Admissions, invoices, missed visits and reviews for a period you pick." },
   clinicians: { href: "/admin/clinicians", label: "Clinicians", icon: Stethoscope, overline: "Your team", description: "Accounts, documents, emergency contacts and contracts." },
   patients: { href: "/admin/patients", label: "Patients", icon: UsersRound, overline: "Your practice", description: "Active and discharged patients, service agreements and possible duplicates." },
+  messages: { href: "/admin/messages", label: "Patient messages", icon: MessagesSquare, overline: "Patient portal", description: "Messages from your patients, and patients asking to join the portal." },
   appointments: { href: "/admin/appointments", label: "Appointments", icon: CalendarDays, overline: "Upcoming", description: "Upcoming visits for every clinician, grouped by day." },
   notes: { href: "/admin/notes", label: "Completed notes", icon: FileCheck, overline: "All clinicians", description: "Every signed note, newest first. Drafts stay private to each clinician until signed." },
   invoices: { href: "/admin/invoices", label: "Invoices", icon: ReceiptText, overline: "Sent by your clinicians", description: "Mark invoices paid, or flag an issue for the clinician to fix." },
@@ -84,7 +86,7 @@ const A = ADMIN_SECTIONS;
 /** Desktop side menu, grouped as in the prototype. */
 export const ADMIN_NAV_GROUPS: NavGroup[] = [
   { items: [A.overview, A.notifications, A.performance] },
-  { label: "People", items: [A.clinicians, A.patients] },
+  { label: "People", items: [A.clinicians, A.patients, A.messages] },
   { label: "Work", items: [A.appointments, A.notes, A.invoices, A.billing] },
   { label: "Practice", items: [A.contracts, A.locations, A.reviews, A.settings] },
 ];
@@ -98,13 +100,14 @@ export const ADMIN_TAB_ITEMS: TabItem[] = [
     href: "/admin/more",
     label: "More",
     icon: Menu,
-    also: [A.notifications, A.contracts, A.performance, A.invoices, A.clinicians, A.appointments, A.notes, A.locations, A.reviews, A.settings].map((s) => s.href),
+    also: [A.notifications, A.messages, A.contracts, A.performance, A.invoices, A.clinicians, A.appointments, A.notes, A.locations, A.reviews, A.settings].map((s) => s.href),
   },
 ];
 
 /** Rows on the admin phone More screen, with the prototype's one-line summaries. */
 export const ADMIN_MORE_ITEMS: (NavItem & { meta: string })[] = [
   { ...A.notifications, meta: "What needs you" },
+  { ...A.messages, meta: "Patients write to you from the portal" },
   { ...A.contracts, meta: "Create, sign and share with clinicians" },
   { ...A.performance, meta: "Admissions, invoices, missed visits, reviews" },
   { ...A.invoices, meta: "Mark paid or flag issues" },

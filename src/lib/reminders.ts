@@ -89,7 +89,7 @@ export async function sendDueReminders(now = Temporal.Now.instant()) {
   const candidates = await db
     .select({ id: clinicians.id, name: clinicians.name, email: clinicians.email, timeZone: clinicians.timeZone, last: clinicians.lastReminderSentOn })
     .from(clinicians)
-    .where(eq(clinicians.reminderEmails, true));
+    .where(and(eq(clinicians.reminderEmails, true), eq(clinicians.role, "clinician")));
 
   let sent = 0;
   let failed = 0;

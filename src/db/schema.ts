@@ -73,9 +73,10 @@ export const clinicians = pgTable("clinicians", {
   // updatePractice keeps them in step with the practices row.
   practiceName: text("practice_name").notNull(),
   country: text("country").notNull().default("US"),
-  // Spec v2 account type: "clinician" writes notes; "admin" runs the practice and never writes notes.
+  // Spec v2 account type: "clinician" writes notes; "admin" runs the practice and never writes notes;
+  // "patient" uses the patient portal (messages with the practice) and sees nothing else.
   // Set at sign-up only; a trigger (drizzle/0005) blocks any change.
-  role: text("role", { enum: ["clinician", "admin"] }).notNull().default("clinician"),
+  role: text("role", { enum: ["clinician", "admin", "patient"] }).notNull().default("clinician"),
   // Clinicians start "pending" and can't see patients until their practice admin
   // activates them. Admins can deactivate (and reactivate) them later; notes are kept.
   status: text("status", { enum: ["pending", "active", "deactivated"] }).notNull().default("pending"),
@@ -100,10 +101,17 @@ export const clinicians = pgTable("clinicians", {
   // Local date (YYYY-MM-DD) the last reminder went out, so it's sent once a day.
   lastReminderSentOn: date("last_reminder_sent_on"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  // Patient portal accounts: the date of birth given at sign-up, for the admin to check against
+  // the record, and the patient record the admin linked when approving (null until then).
+  birthDate: date("birth_date"),
+  patientId: uuid("patient_id").references((): AnyPgColumn => patients.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  check("clinicians_role_check", sql`${t.role} in ('clinician', 'admin')`),
+  check("clinicians_role_check", sql`${t.role} in ('clinician', 'admin', 'patient')`),
+  check("clinicians_patient_link_check", sql`${t.role} = 'patient' or ${t.patientId} is null`),
+  // One portal account per patient record.
+  uniqueIndex("clinicians_patient_idx").on(t.patientId),
   check("clinicians_country_check", sql`${t.country} ~ '^[A-Z]{2}$'`),
   check("clinicians_discipline_check", sql`${t.discipline} is null or ${t.discipline} in ('RN', 'LPN', 'PT', 'OT', 'SLP', 'HHA', 'MH')`),
   check("clinicians_status_check", sql`${t.status} in ('pending', 'active', 'deactivated')`),
@@ -514,6 +522,35 @@ export const notifications = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
   },
   (t) => [index("notifications_recipient_idx").on(t.recipientId, t.readAt)],
+);
+
+// Patient portal: one conversation per patient account, between the patient and the practice's
+// admins. Message bodies can hold health details: never log them or put them in emails.
+export const patientMessages = pgTable(
+  "patient_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    // The patient's portal account (the conversation).
+    accountId: text("account_id")
+      .notNull()
+      .references(() => clinicians.id, { onDelete: "cascade" }),
+    fromPatient: boolean("from_patient").notNull(),
+    // Who wrote it: the patient, or the admin who replied.
+    authorId: text("author_id")
+      .notNull()
+      .references(() => clinicians.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // When the other side opened it (the practice for a patient's message, and the reverse).
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("patient_messages_account_idx").on(t.accountId, t.createdAt),
+    check("patient_messages_body_check", sql`length(${t.body}) between 1 and 2000`),
+  ],
 );
 
 // An invoice's history (spec v2: sent, issue flagged, issue resolved, marked paid).

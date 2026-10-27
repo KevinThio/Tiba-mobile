@@ -225,6 +225,13 @@
       "when": 1792693933492,
       "tag": "0031_clinician_contact_details",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793122748258,
+      "tag": "0032_patient_portal",
+      "breakpoints": true
     }
   ]
 }

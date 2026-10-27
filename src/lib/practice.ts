@@ -29,6 +29,7 @@ export async function practiceHasAdmin(practiceId: string) {
  */
 export async function canEditPractice(account: { role: string; practiceId: string }) {
   if (account.role === "admin") return true;
+  if (account.role !== "clinician") return false;
   return !(await practiceHasAdmin(account.practiceId));
 }
 
@@ -37,7 +38,7 @@ export async function pendingClinicianCount(practiceId: string) {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(clinicians)
-    .where(and(eq(clinicians.practiceId, practiceId), eq(clinicians.status, "pending")));
+    .where(and(eq(clinicians.practiceId, practiceId), eq(clinicians.role, "clinician"), eq(clinicians.status, "pending")));
   return row?.n ?? 0;
 }
 

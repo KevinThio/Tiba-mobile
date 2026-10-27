@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
-/** Signs out and returns to the sign-in page. `iconOnly` is the compact version for the side menu footer. */
-export function SignOutButton({ className, iconOnly = false }: { className?: string; iconOnly?: boolean }) {
+/**
+ * Signs out and returns to a sign-in page (`to`: the staff one by default, the patient portal's
+ * for patients). `iconOnly` is the compact version for the side menu footer.
+ */
+export function SignOutButton({ className, iconOnly = false, to = "/sign-in" }: { className?: string; iconOnly?: boolean; to?: string }) {
   const router = useRouter();
 
   async function signOut() {
     await authClient.signOut();
-    router.push("/sign-in");
+    router.push(to);
   }
 
   if (iconOnly) {
