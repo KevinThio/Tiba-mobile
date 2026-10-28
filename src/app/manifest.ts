@@ -5,7 +5,10 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Tiba",
     short_name: "Tiba",
     description: "Your visit notes, signed and in one place.",
-    start_url: "/appointments",
+    // "/" sends each account to its own home (homeFor): admins, clinicians, patients and referral sources.
+    id: "/",
+    start_url: "/",
+    scope: "/",
     display: "standalone",
     background_color: "#FBFAFD",
     theme_color: "#2D6A4F",

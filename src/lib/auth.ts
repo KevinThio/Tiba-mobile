@@ -218,9 +218,17 @@ export async function requireReferrer() {
   return { ...user, practiceId: user.practiceId, status: user.status ?? "pending" };
 }
 
-/** Returns the signed-in administrator. Clinicians are sent back to their app. Use in every admin page and Server Action. */
+/**
+ * Returns the signed-in administrator. Clinicians are sent back to their app. Use in every admin
+ * page and Server Action. Admins must use two-step sign-in (decided 28 Oct 2026): until they turn
+ * it on, every admin page sends them to /two-step-setup.
+ */
 export async function requireAdmin() {
   const user = await requireAccount();
   if (user.role !== "admin") redirect(homeFor(user));
+  if (!user.twoFactorEnabled) redirect(TWO_STEP_SETUP);
   return user;
 }
+
+/** Where admins turn on two-step sign-in. */
+export const TWO_STEP_SETUP = "/two-step-setup";

@@ -8,7 +8,7 @@ export type { AssistantAudience };
 
 const BASICS = `
 # About Tiba
-Tiba is a web app where clinicians write and sign visit notes tied to appointments, then invoice them. A practice has one administrator (admin) and its clinicians. Patients sign notes and service agreements on the clinician's or admin's device, can leave a review, and can create a patient portal account to message their practice's admin. Referral sources (hospitals, doctors, agencies) can create a referral portal account to send the practice referrals, messages and documents. Tiba works in any browser on a computer or phone; on a phone it can be installed to the home screen ("Add to Home Screen" in Safari's share menu, or "Install app" in Chrome's menu).
+Tiba is a web app where clinicians write and sign visit notes tied to appointments, then invoice them. A practice has one administrator (admin) and its clinicians. Patients sign notes and service agreements on the clinician's or admin's device, can leave a review, and can create a patient portal account to message their practice's admin. Referral sources (hospitals, doctors, agencies) can create a referral portal account to send the practice referrals, messages and documents. Tiba works in any browser on a computer or phone; on a phone it can be installed to the home screen ("Add to Home Screen" in Safari's share menu, or "Install app" in Chrome's menu). The home-screen icon opens each person's own home: admins, clinicians, patients and referral sources each land on their own screen.
 
 Privacy: everything sits behind sign-in, sessions end after 30 minutes without activity (because the device is handed to patients), and signed notes are locked.
 `;
@@ -16,7 +16,8 @@ Privacy: everything sits behind sign-in, sessions end after 30 minutes without a
 const SIGN_IN = `
 # Signing in, signing up and passwords
 - Sign in: enter your email and password on the sign-in page. "Keep me signed in" remembers you on this device, but you're still signed out after 30 idle minutes. If the email isn't registered, Tiba says so; if the password is wrong, it says that instead.
-- Two-step sign-in: if you turned it on, Tiba asks for the 6-digit code from your authenticator app after your password.
+- Two-step sign-in: admins must use it. After the password, Tiba asks for the 6-digit code from an authenticator app (such as Google Authenticator or Microsoft Authenticator). Codes change every 30 seconds, so use the newest one. Lost your phone? Choose "Lost your phone? Use a backup code" and enter one of the backup codes saved when it was turned on (each works once). "Don't ask again on this device for 30 days" skips the code on your own computer or phone; never tick it on a shared device.
+- Turning it on (admins): the first time an admin signs in, Tiba asks them to set it up before they can use the admin app. Install an authenticator app, confirm your password, scan the QR code (or choose "Can't scan it?" and type the key), enter the 6-digit code, then download or copy the backup codes and keep them somewhere safe, away from your phone. If you lose both your phone and your backup codes, contact Tiba support to reset it.
 - Forgot password: on the sign-in page choose "Forgot password?", enter your email and Tiba emails a link (one request a minute). The link works once, within an hour. Setting a new password signs your account out on every device.
 - Create an account: choose "Create an account". Pick your country, then the type of account:
   - Administrator: runs the practice. You type a new practice name and upload the practice logo (PNG or JPG, required). Signing up creates the practice.
