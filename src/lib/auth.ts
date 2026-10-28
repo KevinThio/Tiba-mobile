@@ -12,7 +12,7 @@ import { appUrl } from "@/lib/app-url";
 import { isCountryCode } from "@/lib/countries";
 import { renderEmail, sendEmail } from "@/lib/email";
 import { noteResetEmailFailed } from "@/lib/reset-email-status";
-import { notifyAdminsOfPortalRequest, notifyAdminsOfNewClinician, placeNewAccount } from "@/lib/practice-join";
+import { notifyAdminsOfNewClinician, notifyAdminsOfPortalRequest, notifyAdminsOfReferralRequest, placeNewAccount } from "@/lib/practice-join";
 
 // The device is handed to patients to sign, so sessions end after this much inactivity.
 // Each request older than SESSION_REFRESH_SECONDS pushes the expiry forward again.
@@ -21,7 +21,7 @@ const SESSION_REFRESH_SECONDS = 5 * 60;
 /** How long a password reset link works. */
 export const RESET_LINK_SECONDS = 60 * 60;
 
-const PROTECTED_FIELDS = ["role", "status", "practiceId", "practiceName", "country", "birthDate"];
+const PROTECTED_FIELDS = ["role", "status", "practiceId", "practiceName", "country", "birthDate", "organisation"];
 
 export const auth = betterAuth({
   // The public address (BETTER_AUTH_URL, or the host's address until a domain is connected).
@@ -80,12 +80,18 @@ export const auth = betterAuth({
       practiceId: { type: "string", required: false, input: false },
       status: { type: ["pending", "active", "deactivated"], required: false, input: false, defaultValue: "pending" },
       // Spec v2: picked at sign-up and never changed by the user (see databaseHooks below).
-      // "patient" accounts come from the patient portal's own sign-up page.
+      // "patient" and "referrer" accounts come from the patient and referral portals' own sign-up pages.
       role: {
-        type: ["clinician", "admin", "patient"],
+        type: ["clinician", "admin", "patient", "referrer"],
         required: true,
         defaultValue: "clinician",
-        validator: { input: z.enum(["clinician", "admin", "patient"]) },
+        validator: { input: z.enum(["clinician", "admin", "patient", "referrer"]) },
+      },
+      // Referral portal sign-up only: the hospital, clinic or agency the person refers from.
+      organisation: {
+        type: "string",
+        required: false,
+        validator: { input: z.string().trim().min(1, "Add your organisation.").max(120, "Please shorten your organisation's name.").optional() },
       },
       // Patient portal sign-up only: the date of birth, which the admin checks against the record.
       birthDate: {
@@ -119,6 +125,10 @@ export const auth = betterAuth({
             await notifyAdminsOfPortalRequest(String(user.id), String(user.practiceId)).catch(() => undefined);
             return;
           }
+          if (user.role === "referrer") {
+            await notifyAdminsOfReferralRequest(String(user.id), String(user.practiceId)).catch(() => undefined);
+            return;
+          }
           await notifyAdminsOfNewClinician({
             name: user.name,
             email: user.email,
@@ -145,7 +155,7 @@ export const auth = betterAuth({
   plugins: [twoFactor({ issuer: "Tiba" }), nextCookies()],
 });
 
-export type Role = "clinician" | "admin" | "patient";
+export type Role = "clinician" | "admin" | "patient" | "referrer";
 
 /** The signed-in account of either type, or a redirect to sign in. Only for things both apps share, like practice details. */
 export async function requireAccount() {
@@ -166,6 +176,7 @@ export function homeFor(user: { role: string; status?: string | null }) {
   if (user.role === "admin") return "/admin";
   // The portal shows a patient's own state (waiting, turned off or their messages).
   if (user.role === "patient") return "/portal";
+  if (user.role === "referrer") return "/referrer";
   return user.status === "active" ? "/appointments" : "/pending";
 }
 
@@ -190,6 +201,19 @@ export async function requirePatient() {
   if (!session) redirect("/patient/sign-in");
   const user = session.user;
   if (user.role !== "patient") redirect(homeFor(user));
+  if (!user.practiceId) throw new Error("Account has no practice.");
+  return { ...user, practiceId: user.practiceId, status: user.status ?? "pending" };
+}
+
+/**
+ * Returns the signed-in referral portal account (a referral source), or sends anyone else to their
+ * own app. Check `status === "active"` before showing or accepting messages.
+ */
+export async function requireReferrer() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect("/referral/sign-in");
+  const user = session.user;
+  if (user.role !== "referrer") redirect(homeFor(user));
   if (!user.practiceId) throw new Error("Account has no practice.");
   return { ...user, practiceId: user.practiceId, status: user.status ?? "pending" };
 }

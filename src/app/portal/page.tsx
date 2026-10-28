@@ -48,7 +48,7 @@ export default async function PortalPage() {
       <section className="grid gap-5 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
         <MessageThread
           messages={messages.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))}
-          viewer="patient"
+          viewer="portal"
           practiceName={practice}
           empty={`No messages yet. Say hello to ${practice}.`}
         />

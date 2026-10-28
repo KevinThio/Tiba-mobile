@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Loader2, Lock, Mail, MessageSquareHeart, PenLine, Star, UserRound } from "lucide-react";
+import { ArrowRight, FileUp, Loader2, Lock, Mail, MessageSquareHeart, PenLine, Send, Star, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -152,6 +152,24 @@ export default function SignInPage() {
           <Button variant="ghost" nativeButton={false} render={<Link href="/reviews" />}>
             <Star aria-hidden />
             Check reviews from patients
+          </Button>
+        </div>
+      </section>
+      <section aria-labelledby="referrals-heading" className="mt-4 grid gap-3 rounded-lg bg-muted p-5">
+        <h2 id="referrals-heading" className="flex items-center gap-2 font-sans text-base font-semibold text-foreground">
+          <Send className="size-5 text-primary" aria-hidden />
+          Are you a referral source?
+        </h2>
+        <p className="text-small text-muted-foreground">
+          Hospitals, doctors and agencies can send a practice referrals and documents, and get their replies here.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button nativeButton={false} render={<Link href="/referral/sign-in" />}>
+            <FileUp aria-hidden />
+            Referral sign in
+          </Button>
+          <Button variant="secondary" nativeButton={false} render={<Link href="/referral/sign-up" />}>
+            Create a referral account
           </Button>
         </div>
       </section>

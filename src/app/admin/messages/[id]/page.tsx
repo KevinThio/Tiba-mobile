@@ -5,7 +5,7 @@ import { MessageComposer, MessageThread, ThreadUpkeep } from "@/components/porta
 import { Button } from "@/components/ui/button";
 import { requireAdmin } from "@/lib/auth";
 import { portalAccount, portalConversation } from "@/lib/portal";
-import { markConversationRead, replyToPatient } from "../actions";
+import { markConversationRead, replyToPatient, turnOffPortalAccount } from "../actions";
 import { TurnOffButton } from "./turn-off-button";
 
 /** One patient's conversation with the practice, and the admin's reply box. */
@@ -33,7 +33,7 @@ export default async function AdminConversationPage({ params }: PageProps<"/admi
                 Patient record
               </Button>
             )}
-            {account.status === "active" && <TurnOffButton accountId={account.id} name={name} />}
+            {account.status === "active" && <TurnOffButton accountId={account.id} name={name} turnOff={turnOffPortalAccount} />}
           </div>
         }
       />

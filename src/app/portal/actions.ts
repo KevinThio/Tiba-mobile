@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePatient } from "@/lib/auth";
-import { markReadByPatient, MESSAGE_MAX, sendPatientMessage } from "@/lib/portal";
+import { markReadByPatient, MESSAGE_MAX, sendFromPortal } from "@/lib/portal";
 import { allow } from "@/lib/rate-limit";
 
 const messageInput = z.string().trim().min(1, "Write your message first.").max(MESSAGE_MAX, "That message is too long. Please keep it under 2,000 characters.");
@@ -17,7 +17,8 @@ export async function sendPortalMessage(body: string): Promise<{ ok: true } | { 
   if (!allow(`portal-send:${patient.id}`, 20, 10 * 60)) {
     return { ok: false, message: "You've sent a lot of messages in a short time. Please wait a few minutes." };
   }
-  await sendPatientMessage({ id: patient.id, name: patient.name, practiceId: patient.practiceId }, parsed.data);
+  const sent = await sendFromPortal({ id: patient.id, name: patient.name, practiceId: patient.practiceId }, parsed.data);
+  if (!sent) return { ok: false, message: "We couldn't send that. Please try again." };
   revalidatePath("/portal");
   return { ok: true };
 }

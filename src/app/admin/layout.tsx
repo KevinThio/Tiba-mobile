@@ -10,7 +10,7 @@ import { newReviewCount, pendingClinicianCount, possibleDuplicates, practiceLogo
 /** Admin app (spec v2 section 5). Clinicians are sent back to their app by requireAdmin(). */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { id, name, practiceName, practiceId } = await requireAdmin();
-  const [logoUrl, pending, newReviews, duplicates, unread, invoiceTotals, unbilled, contractNews, portal] = await Promise.all([
+  const [logoUrl, pending, newReviews, duplicates, unread, invoiceTotals, unbilled, contractNews, portal, referral] = await Promise.all([
     practiceLogoUrlFor(practiceId),
     pendingClinicianCount(practiceId),
     newReviewCount(practiceId),
@@ -20,6 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     unbilledOverdue(practiceId),
     unreadOfTypes(id, ["contract_message", "contract_signed"]),
     portalCounts(practiceId),
+    portalCounts(practiceId, "referrer"),
   ]);
 
   return (
@@ -36,6 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         [ADMIN_SECTIONS.billing.href]: unbilled.count,
         [ADMIN_SECTIONS.contracts.href]: contractNews.length,
         [ADMIN_SECTIONS.messages.href]: portal.requests + portal.unread,
+        [ADMIN_SECTIONS.referrals.href]: referral.requests + referral.unread,
       }}
     >
       {children}

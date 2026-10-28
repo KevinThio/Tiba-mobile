@@ -14,6 +14,7 @@ export const PRACTICE_TAKEN = "PRACTICE_TAKEN";
 export const PRACTICE_NOT_FOUND = "PRACTICE_NOT_FOUND";
 export const PRACTICE_HAS_NO_ADMIN = "PRACTICE_HAS_NO_ADMIN";
 export const BIRTH_DATE_NEEDED = "BIRTH_DATE_NEEDED";
+export const ORGANISATION_NEEDED = "ORGANISATION_NEEDED";
 
 type NewAccount = Record<string, unknown>;
 
@@ -65,6 +66,10 @@ export async function placeNewAccount(account: NewAccount) {
   // of birth is accepted here, so sign-up never reveals who is a patient of the practice).
   if (account.role === "patient" && !/^\d{4}-\d{2}-\d{2}$/.test(String(account.birthDate ?? ""))) {
     throw new APIError("BAD_REQUEST", { code: BIRTH_DATE_NEEDED, message: "Add your date of birth." });
+  }
+  // Referral portal: the organisation tells the admin who is referring. Waits like a patient.
+  if (account.role === "referrer" && !String(account.organisation ?? "").trim()) {
+    throw new APIError("BAD_REQUEST", { code: ORGANISATION_NEEDED, message: "Add your organisation." });
   }
   return {
     practiceId: existing.id,
@@ -127,6 +132,38 @@ export async function notifyAdminsOfPortalRequest(accountId: string, practiceId:
       outro: `Check their details under Messages in Tiba${base ? ` (${base}/admin/messages)` : ""}.`,
     });
     await sendEmail({ to: admin.email, subject: "A patient asked for portal access", ...body }).catch(() => undefined);
+  }
+}
+
+/**
+ * Tells a practice's admins that a referral source asked for referral portal access: a
+ * notification in Tiba, and an email that names no one.
+ */
+export async function notifyAdminsOfReferralRequest(accountId: string, practiceId: string) {
+  const [account] = await db
+    .select({ name: clinicians.name, organisation: clinicians.organisation })
+    .from(clinicians)
+    .where(and(eq(clinicians.id, accountId), eq(clinicians.role, "referrer")));
+  if (!account) return;
+  await notifyAdmins(practiceId, {
+    type: "referral_request",
+    refId: accountId,
+    title: `${account.name} asked for referral portal access`,
+    detail: account.organisation ? `From ${account.organisation}. Check you work with them.` : null,
+    href: "/admin/referrals",
+  });
+  const admins = await db
+    .select({ email: clinicians.email, practiceName: clinicians.practiceName })
+    .from(clinicians)
+    .where(and(eq(clinicians.practiceId, practiceId), eq(clinicians.role, "admin")));
+  const base = appUrl();
+  for (const admin of admins) {
+    const body = renderEmail({
+      heading: "A referral source asked to join",
+      intro: `Someone asked to send referrals to ${admin.practiceName} through Tiba's referral portal. They can't send messages or documents until you confirm them.`,
+      outro: `Check their details under Referral sources in Tiba${base ? ` (${base}/admin/referrals)` : ""}.`,
+    });
+    await sendEmail({ to: admin.email, subject: "A referral source asked to join", ...body }).catch(() => undefined);
   }
 }
 

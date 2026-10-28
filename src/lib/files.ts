@@ -1,14 +1,14 @@
 import "server-only";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { clinicians, files, locations, patients } from "@/db/schema";
+import { clinicians, files, locations, patientMessages, patients } from "@/db/schema";
 
 // Uploaded files (spec v2 "Documents and files"). Kept in the database until hosting is decided.
 // Every upload's real type is checked from its first bytes, never trusted from the browser.
 
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
-export type OwnerKind = "clinician" | "clinician_admin" | "patient" | "location";
+export type OwnerKind = "clinician" | "clinician_admin" | "patient" | "location" | "message";
 export type Account = { id: string; role: unknown; status?: unknown; practiceId: string };
 
 const KINDS = {
@@ -39,11 +39,22 @@ export function cleanFileName(name: string, ext: string) {
 /**
  * Whether this account may upload to (or see) files of this owner. Clinicians: only their own
  * Profile documents. Admins: anything in their practice, except they can't add to or remove a
- * clinician's own Profile documents (they can download them).
+ * clinician's own Profile documents (they can download them). Documents attached to a portal
+ * message are read-only once sent: the referral source who sent it and the admins can download
+ * them (they're uploaded through /api/referral/attachments, never /api/files).
  */
 export async function canUseOwner(account: Account, kind: OwnerKind, ownerId: string, action: "read" | "write") {
   if (account.role === "clinician") {
     return account.status === "active" && kind === "clinician" && ownerId === account.id;
+  }
+  if (kind === "message") {
+    if (action !== "read" || !/^[0-9a-f-]{36}$/i.test(ownerId)) return false;
+    if (account.role !== "admin" && !(account.role === "referrer" && account.status === "active")) return false;
+    const [row] = await db
+      .select({ accountId: patientMessages.accountId })
+      .from(patientMessages)
+      .where(and(eq(patientMessages.id, ownerId), eq(patientMessages.practiceId, account.practiceId)));
+    return Boolean(row) && (account.role === "admin" || row.accountId === account.id);
   }
   if (account.role !== "admin") return false;
   if (kind === "clinician" && action === "write") return false;

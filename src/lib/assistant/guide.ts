@@ -8,7 +8,7 @@ export type { AssistantAudience };
 
 const BASICS = `
 # About Tiba
-Tiba is a web app where clinicians write and sign visit notes tied to appointments, then invoice them. A practice has one administrator (admin) and its clinicians. Patients sign notes and service agreements on the clinician's or admin's device, can leave a review, and can create a patient portal account to message their practice's admin. Tiba works in any browser on a computer or phone; on a phone it can be installed to the home screen ("Add to Home Screen" in Safari's share menu, or "Install app" in Chrome's menu).
+Tiba is a web app where clinicians write and sign visit notes tied to appointments, then invoice them. A practice has one administrator (admin) and its clinicians. Patients sign notes and service agreements on the clinician's or admin's device, can leave a review, and can create a patient portal account to message their practice's admin. Referral sources (hospitals, doctors, agencies) can create a referral portal account to send the practice referrals, messages and documents. Tiba works in any browser on a computer or phone; on a phone it can be installed to the home screen ("Add to Home Screen" in Safari's share menu, or "Install app" in Chrome's menu).
 
 Privacy: everything sits behind sign-in, sessions end after 30 minutes without activity (because the device is handed to patients), and signed notes are locked.
 `;
@@ -25,6 +25,7 @@ const SIGN_IN = `
 - If sign-up says the practice name is taken, a practice with that name already exists: ask its admin, or join it as a clinician. If it says the practice wasn't found, check the name with your admin.
 - Patients don't need an account to leave a review: use "Leave a review" on the sign-in page (or the review link the practice shares). Only the practice's admin reads reviews.
 - Patient portal: patients can message their practice's admin. On the sign-in page, under "Are you a patient?", choose "Patient sign in", then "Create your patient account": the exact practice name, full name (as the practice has it), date of birth, email and a password of 8 or more characters. The account waits until the practice's admin confirms it's really their patient; Tiba emails them once it's confirmed. Then they sign in with "Patient sign in" to send and read messages, and get an email when the practice replies (the email never contains the message). Forgot password works the same way as for staff. The portal is not for emergencies.
+- Referral portal: hospitals, doctors' offices and agencies that refer patients to a practice. On the sign-in page, under "Are you a referral source?", choose "Create a referral account": the exact practice name, full name, organisation (the hospital, clinic or agency), email and a password of 8 or more characters. The account waits until the practice's admin confirms them; Tiba emails them once confirmed. Then they sign in with "Referral sign in" to send messages and documents and read replies. "Attach documents" adds up to 5 PDF, Word or image files (PNG or JPG) of up to 4 MB each to a message; each uploads straight away and can be removed until Send. A message can be just documents. Sent messages and documents can't be changed. The practice's replies come with an email (never containing the message). Not for urgent care.
 `;
 
 const CLINICIAN = `
@@ -88,10 +89,10 @@ Settings: your discipline (decides which notes you can write), the visit fee, pr
 
 const ADMIN = `
 # The admin app
-Menu: Overview, Notifications, Performance; People: Clinicians, Patients, Patient messages; Work: Appointments, Completed notes, Invoices, Insurance billing; Practice: Contracts, Locations, Patient reviews, Settings. On a phone the tabs are Overview, Patients, Billing and More. Admins never write notes.
+Menu: Overview, Notifications, Performance; People: Clinicians, Patients, Patient messages, Referral sources; Work: Appointments, Completed notes, Invoices, Insurance billing; Practice: Contracts, Locations, Patient reviews, Settings. On a phone the tabs are Overview, Patients, Billing and More. Admins never write notes.
 
 ## Overview
-"Needs your attention" lists what needs you: clinicians waiting to be verified, notes unbilled for 30+ days, service agreements the client signed that need your signature, contract replies and signatures, new invoices, invoice issues, possible duplicate patients, patients asking to join the patient portal, new messages from patients, deactivated accounts and new reviews. "Today across the practice" lists today's visits.
+"Needs your attention" lists what needs you: clinicians waiting to be verified, notes unbilled for 30+ days, service agreements the client signed that need your signature, contract replies and signatures, new invoices, invoice issues, possible duplicate patients, patients asking to join the patient portal, new messages from patients, referral sources asking to join, new messages from referral sources, deactivated accounts and new reviews. "Today across the practice" lists today's visits.
 
 ## Clinicians
 - Clinicians join by signing up with your practice name. They wait under "Waiting for you to verify": choose "Activate" for people you know, or "Not now".
@@ -131,6 +132,11 @@ Pick a period (7, 30, 90 or 180 days, or this year): patients admitted, invoices
 - Patients create a portal account from "Patient sign in" on the sign-in page. Each request shows under "Asking to join" in Patient messages, with the name, date of birth and email they gave, and the patient record that matches (if any). Check it's really your patient, pick the record under "Link to patient record" and choose Confirm; or Decline (they get an email asking them to contact you directly).
 - Once confirmed, their messages show under Conversations, newest first, with "new" counts. Open one to read it and write a reply; the patient gets an email saying you replied (the email never contains the message).
 - "Turn off access" on a conversation stops a patient sending or reading messages.
+
+## Referral sources (referral portal)
+- Hospitals, doctors and agencies create a referral account from "Are you a referral source?" on the sign-in page, using your practice's exact name. Each request shows under "Asking to join" in Referral sources, with their name, organisation and email. Confirm people you work with, or Decline (they get an email asking them to contact you directly).
+- Once confirmed, their messages show under Conversations with "new" counts. Open one to read it, open or download their documents (tap a document to open it), and write a reply. They get an email saying you replied (never the message).
+- "Turn off access" stops a referral source sending or reading messages. Documents they sent stay in the conversation.
 
 ## Patient reviews, notifications and settings
 - Patient reviews: only admins see them. Share the review link from this screen. Hide a review to remove it from the list and the average; reviews can't be edited or deleted.

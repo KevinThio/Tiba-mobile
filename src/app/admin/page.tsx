@@ -1,4 +1,4 @@
-import { ChevronRight, CircleAlert, FilePen, FileSignature, Landmark, MessagesSquare, ReceiptText, Star, UserPlus, UserRoundCheck, UserX, UsersRound, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, FilePen, FileSignature, FileUp, Landmark, MessagesSquare, ReceiptText, Star, UserPlus, UserRoundCheck, UserX, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,11 @@ export default async function AdminOverviewPage() {
     oldestNewReview(practiceId),
     visitsAroundToday(practiceId),
   ]);
-  const [contractNews, portal] = await Promise.all([unreadOfTypes(id, ["contract_message", "contract_signed"]), portalCounts(practiceId)]);
+  const [contractNews, portal, referral] = await Promise.all([
+    unreadOfTypes(id, ["contract_message", "contract_signed"]),
+    portalCounts(practiceId),
+    portalCounts(practiceId, "referrer"),
+  ]);
 
   const items: Attention[] = [];
   if (waiting > 0) {
@@ -73,6 +77,24 @@ export default async function AdminOverviewPage() {
       icon: MessagesSquare,
       title: `${portal.unread === 1 ? "1 new message" : `${portal.unread} new messages`} from patients`,
       detail: "Patients wrote to you from the patient portal.",
+      badge: { label: "New", variant: "info" },
+    });
+  }
+  if (referral.requests > 0) {
+    items.push({
+      href: "/admin/referrals",
+      icon: UserRoundCheck,
+      title: `${referral.requests === 1 ? "1 referral source is" : `${referral.requests} referral sources are`} asking to join`,
+      detail: "Check you work with them before they can send you referrals and documents.",
+      badge: { label: "Confirm", variant: "warning" },
+    });
+  }
+  if (referral.unread > 0) {
+    items.push({
+      href: "/admin/referrals",
+      icon: FileUp,
+      title: `${referral.unread === 1 ? "1 new message" : `${referral.unread} new messages`} from referral sources`,
+      detail: "Referrals and documents sent to you from the referral portal.",
       badge: { label: "New", variant: "info" },
     });
   }

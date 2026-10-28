@@ -74,9 +74,11 @@ export const clinicians = pgTable("clinicians", {
   practiceName: text("practice_name").notNull(),
   country: text("country").notNull().default("US"),
   // Spec v2 account type: "clinician" writes notes; "admin" runs the practice and never writes notes;
-  // "patient" uses the patient portal (messages with the practice) and sees nothing else.
+  // "patient" uses the patient portal (messages with the practice) and sees nothing else;
+  // "referrer" (a referral source: a hospital, doctor or agency) uses the referral portal the same
+  // way, and can attach documents to their messages.
   // Set at sign-up only; a trigger (drizzle/0005) blocks any change.
-  role: text("role", { enum: ["clinician", "admin", "patient"] }).notNull().default("clinician"),
+  role: text("role", { enum: ["clinician", "admin", "patient", "referrer"] }).notNull().default("clinician"),
   // Clinicians start "pending" and can't see patients until their practice admin
   // activates them. Admins can deactivate (and reactivate) them later; notes are kept.
   status: text("status", { enum: ["pending", "active", "deactivated"] }).notNull().default("pending"),
@@ -105,10 +107,12 @@ export const clinicians = pgTable("clinicians", {
   // the record, and the patient record the admin linked when approving (null until then).
   birthDate: date("birth_date"),
   patientId: uuid("patient_id").references((): AnyPgColumn => patients.id, { onDelete: "set null" }),
+  // Referral portal accounts: the hospital, clinic or agency they refer from, given at sign-up.
+  organisation: text("organisation"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  check("clinicians_role_check", sql`${t.role} in ('clinician', 'admin', 'patient')`),
+  check("clinicians_role_check", sql`${t.role} in ('clinician', 'admin', 'patient', 'referrer')`),
   check("clinicians_patient_link_check", sql`${t.role} = 'patient' or ${t.patientId} is null`),
   // One portal account per patient record.
   uniqueIndex("clinicians_patient_idx").on(t.patientId),
@@ -524,8 +528,10 @@ export const notifications = pgTable(
   (t) => [index("notifications_recipient_idx").on(t.recipientId, t.readAt)],
 );
 
-// Patient portal: one conversation per patient account, between the patient and the practice's
-// admins. Message bodies can hold health details: never log them or put them in emails.
+// Patient and referral portals: one conversation per portal account (a patient or a referral
+// source), between that account and the practice's admins. `from_patient` means "from the portal
+// account". Referral sources can attach documents (files with owner_kind "message"). Message
+// bodies can hold health details: never log them or put them in emails.
 export const patientMessages = pgTable(
   "patient_messages",
   {
@@ -607,6 +613,8 @@ const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({ dataTyp
 //   clinician_admin  documents the admin keeps about a clinician; admins only
 //   patient          clinical documents on a patient (referrals, reports, results); admins
 //   location         certificates, leases, policies (PDF only); admins
+//   message          documents a referral source attached to a portal message; that account and
+//                    admins (owner_id is the message, or "draft:<account id>" until it's sent)
 export const files = pgTable(
   "files",
   {
@@ -614,7 +622,7 @@ export const files = pgTable(
     practiceId: uuid("practice_id")
       .notNull()
       .references(() => practices.id, { onDelete: "cascade" }),
-    ownerKind: text("owner_kind", { enum: ["clinician", "clinician_admin", "patient", "location"] }).notNull(),
+    ownerKind: text("owner_kind", { enum: ["clinician", "clinician_admin", "patient", "location", "message"] }).notNull(),
     ownerId: text("owner_id").notNull(),
     // For the clinician's Profile: "resume" or "w9" (one each); null for everything else.
     slot: text("slot"),
@@ -628,7 +636,7 @@ export const files = pgTable(
   },
   (t) => [
     index("files_owner_idx").on(t.ownerKind, t.ownerId),
-    check("files_owner_kind_check", sql`${t.ownerKind} in ('clinician', 'clinician_admin', 'patient', 'location')`),
+    check("files_owner_kind_check", sql`${t.ownerKind} in ('clinician', 'clinician_admin', 'patient', 'location', 'message')`),
   ],
 );
 
