@@ -37,7 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         [ADMIN_SECTIONS.billing.href]: unbilled.count,
         [ADMIN_SECTIONS.contracts.href]: contractNews.length,
         [ADMIN_SECTIONS.messages.href]: portal.requests + portal.unread,
-        [ADMIN_SECTIONS.referrals.href]: referral.requests + referral.unread,
+        [ADMIN_SECTIONS.referrals.href]: referral.requests + referral.unread + referral.referrals,
       }}
     >
       {children}

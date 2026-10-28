@@ -47,3 +47,6 @@ export function formatDayShort(date: Date) {
 export function firstName(fullName: string) {
   return fullName.trim().split(/\s+/)[0];
 }
+
+/** A file size for lists: "48 KB", "1.2 MB". */
+export const sizeText = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, count, desc, eq, inArray, isNull, lt, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { clinicians, files, patientMessages, patients } from "@/db/schema";
+import { clinicians, files, patientMessages, patients, referrals } from "@/db/schema";
 import { appUrl } from "@/lib/app-url";
 import { renderEmail, sendEmail } from "@/lib/email";
 import { clearNotifications, notifyAdmins } from "@/lib/notifications";
@@ -181,9 +181,13 @@ export async function portalConversations(practiceId: string, kind: PortalKind =
     .sort((a, b) => (b.last?.createdAt.getTime() ?? 0) - (a.last?.createdAt.getTime() ?? 0));
 }
 
-/** For the admin's menu badge and Overview: requests waiting and unread messages from this kind of account. */
+/**
+ * For the admin's menu badge and Overview: requests waiting, unread messages from this kind of
+ * account and (referral sources) referrals waiting for a decision. A referral's own message isn't
+ * counted as unread: the waiting referral is.
+ */
 export async function portalCounts(practiceId: string, kind: PortalKind = "patient") {
-  const [[requests], [unread]] = await Promise.all([
+  const [[requests], [unread], [waiting]] = await Promise.all([
     db
       .select({ n: count() })
       .from(clinicians)
@@ -192,16 +196,24 @@ export async function portalCounts(practiceId: string, kind: PortalKind = "patie
       .select({ n: count() })
       .from(patientMessages)
       .innerJoin(clinicians, eq(clinicians.id, patientMessages.accountId))
+      .leftJoin(referrals, eq(referrals.messageId, patientMessages.id))
       .where(
         and(
           eq(patientMessages.practiceId, practiceId),
           eq(clinicians.role, kind),
           eq(patientMessages.fromPatient, true),
           isNull(patientMessages.readAt),
+          isNull(referrals.id),
         ),
       ),
+    kind === "referrer"
+      ? db
+          .select({ n: count() })
+          .from(referrals)
+          .where(and(eq(referrals.practiceId, practiceId), eq(referrals.status, "pending")))
+      : [{ n: 0 }],
   ]);
-  return { requests: Number(requests?.n ?? 0), unread: Number(unread?.n ?? 0) };
+  return { requests: Number(requests?.n ?? 0), unread: Number(unread?.n ?? 0), referrals: Number(waiting?.n ?? 0) };
 }
 
 /** Where a referral source's uploaded documents wait until they send the message. */
@@ -210,13 +222,19 @@ export const draftOwner = (accountId: string) => `draft:${accountId}`;
 /**
  * A portal account writes to the practice, with any documents it uploaded for this message
  * (referral sources only). The admins get a notification, and an email for the first unread one.
- * Returns false when an attachment isn't one of the account's waiting uploads.
+ * Returns false when an attachment isn't one of the account's waiting uploads. `options.within`
+ * runs in the same transaction with the new message's id (a referral is saved this way), and
+ * `options.notice` replaces the notification and email wording.
  */
 export async function sendFromPortal(
   account: { id: string; name: string; practiceId: string },
   body: string,
   kind: PortalKind = "patient",
   attachmentIds: string[] = [],
+  options: {
+    within?: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], messageId: string) => Promise<unknown>;
+    notice?: { title: string; heading: string; intro: (practiceName: string) => string };
+  } = {},
 ) {
   const k = KIND[kind];
   const waiting = await unreadFromAccount(account.id);
@@ -242,6 +260,7 @@ export async function sendFromPortal(
         tx.rollback();
       }
     }
+    if (options.within) await options.within(tx, message.id);
     // Uploads left behind (removed before sending, or a closed tab) are cleared after a day.
     await tx
       .delete(files)
@@ -260,7 +279,7 @@ export async function sendFromPortal(
   await notifyAdmins(account.practiceId, {
     type: k.message,
     refId: account.id,
-    title: `New message from ${account.name}`,
+    title: options.notice?.title ?? `New message from ${account.name}`,
     detail: kind === "referrer" && attachmentIds.length ? `Referral portal · ${documents(attachmentIds.length)}` : kind === "referrer" ? "Referral portal" : "Patient portal",
     href: `${k.admin}/${account.id}`,
   }).catch(() => undefined);
@@ -272,14 +291,15 @@ export async function sendFromPortal(
   const base = appUrl();
   for (const admin of admins) {
     const email = renderEmail({
-      heading: `A ${k.who} sent you a message`,
-      intro:
-        kind === "referrer"
+      heading: options.notice?.heading ?? `A ${k.who} sent you a message`,
+      intro: options.notice
+        ? options.notice.intro(admin.practiceName)
+        : kind === "referrer"
           ? `One of ${admin.practiceName}'s referral sources wrote to you through the referral portal. For privacy, the message and any documents are only in Tiba.`
           : `One of ${admin.practiceName}'s patients wrote to you through the patient portal. For their privacy, the message is only in Tiba.`,
       action: base ? { label: "Read it in Tiba", url: `${base}${k.admin}/${account.id}` } : undefined,
     });
-    await sendEmail({ to: admin.email, subject: `A ${k.who} sent you a message`, ...email }).catch(() => undefined);
+    await sendEmail({ to: admin.email, subject: options.notice?.heading ?? `A ${k.who} sent you a message`, ...email }).catch(() => undefined);
   }
   return true;
 }

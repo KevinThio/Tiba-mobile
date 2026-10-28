@@ -559,6 +559,49 @@ export const patientMessages = pgTable(
   ],
 );
 
+// Referral portal: a patient a referral source sends the practice, with the details the practice
+// needs to check cover. The admin accepts or declines it (with an optional note the source sees).
+// The referral arrives as a portal message (message_id), which carries any documents.
+export const referrals = pgTable(
+  "referrals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    // The referral source's portal account.
+    referrerId: text("referrer_id")
+      .notNull()
+      .references(() => clinicians.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id").references(() => patientMessages.id, { onDelete: "set null" }),
+    patientName: text("patient_name").notNull(),
+    birthDate: date("birth_date").notNull(),
+    insurer: text("insurer").notNull(),
+    // Null for self-pay.
+    insuranceId: text("insurance_id"),
+    // What the patient needs, from the referral source (optional).
+    note: text("note"),
+    status: text("status", { enum: ["pending", "accepted", "declined"] }).notNull().default("pending"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedById: text("decided_by_id").references(() => clinicians.id, { onDelete: "set null" }),
+    decisionNote: text("decision_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("referrals_practice_idx").on(t.practiceId, t.createdAt),
+    index("referrals_referrer_idx").on(t.referrerId, t.createdAt),
+    uniqueIndex("referrals_message_idx").on(t.messageId),
+    check("referrals_status_check", sql`${t.status} in ('pending', 'accepted', 'declined')`),
+    // Decided referrals say when; waiting ones don't.
+    check("referrals_decided_check", sql`(${t.status} = 'pending') = (${t.decidedAt} is null)`),
+    check("referrals_patient_name_check", sql`length(${t.patientName}) between 1 and 120`),
+    check("referrals_insurer_check", sql`length(${t.insurer}) between 1 and 120`),
+    check("referrals_insurance_id_check", sql`${t.insuranceId} is null or length(${t.insuranceId}) between 1 and 60`),
+    check("referrals_note_check", sql`${t.note} is null or length(${t.note}) between 1 and 1000`),
+    check("referrals_decision_note_check", sql`${t.decisionNote} is null or length(${t.decisionNote}) between 1 and 500`),
+  ],
+);
+
 // An invoice's history (spec v2: sent, issue flagged, issue resolved, marked paid).
 export const invoiceEvents = pgTable(
   "invoice_events",

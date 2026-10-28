@@ -1,27 +1,51 @@
-import { ChevronRight, FileUp } from "lucide-react";
+import { ChartColumn, ChevronRight, FileUp, Inbox } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { ADMIN_SECTIONS } from "@/components/nav-items";
 import { PageHeader } from "@/components/page-header";
+import { ReferralCard, ReferralFilterTabs } from "@/components/referral-list";
 import { RelativeDay } from "@/components/relative-day";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { requireAdmin } from "@/lib/auth";
 import { portalConversations, referralRequests } from "@/lib/portal";
+import { isReferralFilter, REFERRAL_FILTERS } from "@/lib/referral-status";
+import { listReferrals, referralCounts } from "@/lib/referrals";
+import { ReferralDecision } from "./referral-decision";
 import { ReferralRequestCard } from "./request-card";
 
 const S = ADMIN_SECTIONS.referrals;
 
 /**
  * Referral sources (referral portal): hospitals, doctors and agencies asking to join, for the
- * admin to confirm, then every conversation with the newest first and unread counts.
+ * admin to confirm; their referrals (waiting first) to accept or decline; then every
+ * conversation with the newest first and unread counts.
  */
-export default async function AdminReferralsPage() {
+export default async function AdminReferralsPage({ searchParams }: PageProps<"/admin/referrals">) {
   const admin = await requireAdmin();
-  const [requests, conversations] = await Promise.all([referralRequests(admin.practiceId), portalConversations(admin.practiceId, "referrer")]);
+  const { show: raw } = await searchParams;
+  const show = isReferralFilter(raw) ? raw : "pending";
+  const [requests, conversations, referrals, counts] = await Promise.all([
+    referralRequests(admin.practiceId),
+    portalConversations(admin.practiceId, "referrer"),
+    listReferrals(admin.practiceId, { status: show === "all" ? undefined : show }),
+    referralCounts(admin.practiceId),
+  ]);
+  const filterLabel = REFERRAL_FILTERS.find((f) => f.key === show)!.label.toLowerCase();
 
   return (
     <div className="grid grid-cols-1 gap-8">
-      <PageHeader overline={S.overline} title={S.label} description={S.description} />
+      <PageHeader
+        overline={S.overline}
+        title={S.label}
+        description={S.description}
+        actions={
+          <Button variant="outline" nativeButton={false} render={<Link href="/admin/performance#referrals" />}>
+            <ChartColumn aria-hidden />
+            Referral analysis
+          </Button>
+        }
+      />
 
       {requests.length > 0 && (
         <section className="grid gap-3" aria-labelledby="requests-heading">
@@ -38,6 +62,29 @@ export default async function AdminReferralsPage() {
           </ul>
         </section>
       )}
+
+      <section className="grid gap-3" aria-labelledby="referrals-heading">
+        <h2 id="referrals-heading" className="flex items-center gap-2 text-h3">
+          Referrals {counts.pending > 0 && <Badge variant="warning">{counts.pending} waiting</Badge>}
+        </h2>
+        <ReferralFilterTabs base="/admin/referrals" current={show} counts={counts} defaultKey="pending" />
+        {referrals.length ? (
+          <ul className="grid grid-cols-1 gap-3">
+            {referrals.map((r) => (
+              <ReferralCard
+                key={r.id}
+                referral={r}
+                showSource
+                actions={r.status === "pending" && <ReferralDecision referralId={r.id} patientName={r.patientName} />}
+              />
+            ))}
+          </ul>
+        ) : (
+          <EmptyState icon={Inbox} title={show === "pending" ? "No referrals waiting" : `No ${filterLabel} referrals`}>
+            {show === "pending" ? "New referrals from your referral sources show here for you to accept or decline." : "Referrals show here once they have this status."}
+          </EmptyState>
+        )}
+      </section>
 
       <section className="grid gap-3" aria-labelledby="conversations-heading">
         <h2 id="conversations-heading" className="text-h3">

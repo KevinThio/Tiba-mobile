@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { CalendarX2, ChartColumn, CircleCheck, Clock, ReceiptText, Star, UserPlus, type LucideIcon } from "lucide-react";
+import { Award, CalendarX2, ChartColumn, CircleCheck, CircleX, Clock, FileUp, ReceiptText, Star, UserPlus, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
@@ -9,15 +9,22 @@ import { requireAdmin } from "@/lib/auth";
 import { formatMoney } from "@/lib/countries";
 import { disciplineLabel, isDiscipline } from "@/lib/disciplines";
 import { isPerformancePeriod, PERFORMANCE_PERIODS, periodRange, practicePerformance, type PerformancePeriod } from "@/lib/performance";
+import { referralAnalysis, type ReferralSourceStats } from "@/lib/referrals";
 import { isValidTimeZone } from "@/lib/reminders";
 import { cn } from "@/lib/utils";
 
 const DAY = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const REFERRAL_KEY = [
+  ["Accepted", "bg-primary"],
+  ["Declined", "bg-destructive"],
+  ["Waiting", "bg-chart-2"],
+] as const;
 
 /**
  * Practice performance (spec v2 section 5b): admissions, invoices sent and their status, missed
- * visits and patient reviews for the chosen period, overall and by clinician.
+ * visits and patient reviews for the chosen period, overall and by clinician; and the referral
+ * analysis: referrals received per referral source and how many were accepted.
  */
 export default async function PerformancePage({ searchParams }: PageProps<"/admin/performance">) {
   const admin = await requireAdmin();
@@ -27,7 +34,9 @@ export default async function PerformancePage({ searchParams }: PageProps<"/admi
   const [me] = await db.select({ timeZone: clinicians.timeZone }).from(clinicians).where(eq(clinicians.id, admin.id));
   const timeZone = me?.timeZone && isValidTimeZone(me.timeZone) ? me.timeZone : "UTC";
   const range = periodRange(period, timeZone);
-  const p = await practicePerformance(admin.practiceId, range);
+  const [p, referrals] = await Promise.all([practicePerformance(admin.practiceId, range), referralAnalysis(admin.practiceId, range)]);
+  const maxReferrals = Math.max(1, ...referrals.sources.map((s) => s.total));
+  const rate = (accepted: number, decided: number) => (decided ? `${Math.round((accepted / decided) * 100)}% accepted` : "None decided yet");
 
   const money = (totals: { currency: string; minor: number }[]) =>
     totals.length ? totals.map((t) => formatMoney(t.minor, admin.country, t.currency)).join(" + ") : formatMoney(0, admin.country);
@@ -175,6 +184,88 @@ export default async function PerformancePage({ searchParams }: PageProps<"/admi
         )}
       </section>
 
+      <section id="referrals" aria-labelledby="referrals-heading" className="grid scroll-mt-24 gap-3">
+        <div className="grid gap-1">
+          <h2 id="referrals-heading" className="text-h2">
+            Referral sources
+          </h2>
+          <p className="text-muted-foreground">Referrals received in this period, who sent the most, and how many you accepted.</p>
+        </div>
+        {referrals.totals.total ? (
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Stat icon={FileUp} label="Referrals received" value={referrals.totals.total}>
+                From {plural(referrals.sources.length, "referral source")}
+              </Stat>
+              <Stat icon={CircleCheck} label="Accepted" value={referrals.totals.accepted}>
+                {rate(referrals.totals.accepted, referrals.totals.accepted + referrals.totals.declined)}
+              </Stat>
+              <Stat icon={CircleX} label="Declined" value={referrals.totals.declined}>
+                {referrals.totals.declined ? "Each one shows the note you gave" : "None declined."}
+              </Stat>
+              <Stat icon={Clock} label="Waiting" value={referrals.totals.pending} alert={referrals.totals.pending > 0}>
+                {referrals.totals.pending ? (
+                  <Link href="/admin/referrals" className="underline underline-offset-2">
+                    Accept or decline them
+                  </Link>
+                ) : (
+                  "All decided."
+                )}
+              </Stat>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Leader label="Most referrals" source={referrals.mostReferrals} value={(s) => plural(s.total, "referral")} />
+              <Leader label="Most accepted referrals" source={referrals.mostAccepted} value={(s) => `${s.accepted} accepted of ${s.total}`} />
+            </div>
+            <ol className="grid grid-cols-1 rounded-lg border border-border-subtle bg-card shadow-sm" aria-label="Referral sources by referrals received">
+              {referrals.sources.map((s, i) => (
+                <li
+                  key={s.id}
+                  className="grid gap-3 border-b border-border-subtle px-4 py-4 last:border-b-0 sm:px-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_minmax(0,1fr)] md:items-center"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="mt-0.5 w-6 shrink-0 text-small font-semibold text-muted-foreground">{i + 1}.</span>
+                    <div className="min-w-0">
+                      <Link href={`/admin/referrals/${s.id}`} className="font-semibold underline-offset-2 hover:underline">
+                        {s.name}
+                      </Link>
+                      <p className="truncate text-small text-muted-foreground">
+                        {s.organisation ?? "No organisation"}
+                        {!s.active && " · turned off"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid gap-1">
+                    <p className="text-small">
+                      {plural(s.total, "referral")} · {s.accepted} accepted · {s.declined} declined
+                      {s.pending > 0 && ` · ${s.pending} waiting`}
+                    </p>
+                    <div className="flex h-2 overflow-hidden rounded-full bg-sunken" style={{ width: `${Math.max(8, (s.total / maxReferrals) * 100)}%` }} aria-hidden>
+                      {s.accepted > 0 && <span className="bg-primary" style={{ width: `${(s.accepted / s.total) * 100}%` }} />}
+                      {s.declined > 0 && <span className="bg-destructive" style={{ width: `${(s.declined / s.total) * 100}%` }} />}
+                      {s.pending > 0 && <span className="bg-chart-2" style={{ width: `${(s.pending / s.total) * 100}%` }} />}
+                    </div>
+                  </div>
+                  <p className="text-small text-muted-foreground md:text-right">{rate(s.accepted, s.accepted + s.declined)}</p>
+                </li>
+              ))}
+            </ol>
+            <ul className="flex flex-wrap gap-x-5 gap-y-1 text-small">
+              {REFERRAL_KEY.map(([label, bar]) => (
+                <li key={label} className="flex items-center gap-2">
+                  <span className={cn("size-2.5 rounded-full", bar)} aria-hidden />
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <EmptyState icon={FileUp} title="No referrals in this period">
+            Referral sources send referrals from the referral portal. Confirm new ones under Referral sources.
+          </EmptyState>
+        )}
+      </section>
+
       <section aria-labelledby="reviews-heading" className="grid gap-3">
         <h2 id="reviews-heading" className="text-h2">
           Reviews in this period
@@ -230,6 +321,33 @@ function Stat({
       {/* Not cn(): tailwind-merge takes text-h1 for a colour and drops it. */}
       <p className={`font-heading text-h1 ${alert ? "text-destructive" : "text-foreground"}`}>{value}</p>
       <div className="text-small text-muted-foreground">{children}</div>
+    </div>
+  );
+}
+
+/** The referral source leading on one measure, or a line saying no one does yet. */
+function Leader({ label, source, value }: { label: string; source: ReferralSourceStats | null; value: (s: ReferralSourceStats) => string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-border-subtle bg-card p-5 shadow-sm">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-accent text-accent-foreground">
+        <Award className="size-5" aria-hidden />
+      </span>
+      <div className="min-w-0">
+        <p className="text-small font-semibold text-muted-foreground">{label}</p>
+        {source ? (
+          <>
+            <Link href={`/admin/referrals/${source.id}`} className="font-semibold underline-offset-2 hover:underline">
+              {source.name}
+            </Link>
+            <p className="text-small text-muted-foreground">
+              {source.organisation ? `${source.organisation} · ` : ""}
+              {value(source)}
+            </p>
+          </>
+        ) : (
+          <p className="text-muted-foreground">No one yet in this period.</p>
+        )}
+      </div>
     </div>
   );
 }

@@ -8,13 +8,13 @@ import { FormAlert } from "@/components/form-alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sizeText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type FileItem = { id: string; slot: string | null; name: string; description: string | null; size: number; createdAt: string };
 type Owner = { ownerKind: "clinician" | "clinician_admin" | "patient" | "location"; ownerId: string };
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
-export const sizeText = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 const ACCEPT_ANY = ".pdf,.doc,.docx,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg";
 
 async function upload(file: File, owner: Owner, extra: { slot?: string; description?: string }) {

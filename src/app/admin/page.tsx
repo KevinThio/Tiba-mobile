@@ -89,12 +89,21 @@ export default async function AdminOverviewPage() {
       badge: { label: "Confirm", variant: "warning" },
     });
   }
-  if (referral.unread > 0) {
+  if (referral.referrals > 0) {
     items.push({
       href: "/admin/referrals",
       icon: FileUp,
+      title: `${referral.referrals === 1 ? "1 referral is" : `${referral.referrals} referrals are`} waiting for your decision`,
+      detail: "Check the patient's details and cover, then accept or decline.",
+      badge: { label: "Decide", variant: "warning" },
+    });
+  }
+  if (referral.unread > 0) {
+    items.push({
+      href: "/admin/referrals",
+      icon: MessagesSquare,
       title: `${referral.unread === 1 ? "1 new message" : `${referral.unread} new messages`} from referral sources`,
-      detail: "Referrals and documents sent to you from the referral portal.",
+      detail: "Messages and documents sent to you from the referral portal.",
       badge: { label: "New", variant: "info" },
     });
   }

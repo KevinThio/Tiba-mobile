@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { approveReferralAccount, declinePortalAccount, markReadByPractice, MESSAGE_MAX, sendPracticeReply } from "@/lib/portal";
+import { REFERRAL_LIMITS } from "@/lib/referral-status";
+import { decideReferral } from "@/lib/referrals";
 
 type Result = { ok: true } | { ok: false; message: string };
 const accountId = z.string().min(1).max(100);
@@ -42,4 +44,20 @@ export async function markReferralRead(id: string) {
   const admin = await requireAdmin();
   await markReadByPractice(admin.practiceId, id, "referrer");
   revalidatePath("/", "layout");
+}
+
+/** Accepts or declines a waiting referral, with an optional note the referral source sees. */
+export async function decideReferralRequest(input: { referralId: string; decision: "accepted" | "declined"; note: string }): Promise<Result> {
+  const admin = await requireAdmin();
+  const parsed = z
+    .object({
+      referralId: z.uuid(),
+      decision: z.enum(["accepted", "declined"]),
+      note: z.string().trim().max(REFERRAL_LIMITS.decisionNote, "Please keep the note under 500 characters."),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues.find((i) => i.path[0] === "note")?.message ?? "Something went wrong. Please refresh the page." };
+  const result = await decideReferral(admin, parsed.data.referralId, parsed.data.decision, parsed.data.note || null);
+  revalidatePath("/", "layout");
+  return result;
 }
