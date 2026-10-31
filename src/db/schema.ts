@@ -893,8 +893,8 @@ export const patientOffers = pgTable(
   ],
 );
 
-// Clinicians who accepted an offered patient, in order (the admin assigns one of them).
-// A clinician can withdraw while the offer is open.
+// Clinicians' answers to an offered patient: accepted (the admin assigns one of them, usually the
+// first) or declined, with an optional reason. A clinician can change their answer while it's open.
 export const patientOfferResponses = pgTable(
   "patient_offer_responses",
   {
@@ -905,7 +905,16 @@ export const patientOfferResponses = pgTable(
     clinicianId: text("clinician_id")
       .notNull()
       .references(() => clinicians.id, { onDelete: "cascade" }),
-    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    answer: text("answer", { enum: ["accepted", "declined"] }).notNull().default("accepted"),
+    // Why they declined (optional; only for declines).
+    reason: text("reason"),
+    // When they last answered (the column dates from before declining existed).
+    answeredAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [unique("patient_offer_responses_once").on(t.offerId, t.clinicianId), index("patient_offer_responses_offer_idx").on(t.offerId, t.acceptedAt)],
+  (t) => [
+    unique("patient_offer_responses_once").on(t.offerId, t.clinicianId),
+    index("patient_offer_responses_offer_idx").on(t.offerId, t.answeredAt),
+    check("patient_offer_responses_answer_check", sql`${t.answer} in ('accepted', 'declined')`),
+    check("patient_offer_responses_reason_check", sql`${t.answer} = 'declined' or ${t.reason} is null`),
+  ],
 );

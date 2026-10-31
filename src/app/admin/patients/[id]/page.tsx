@@ -16,7 +16,7 @@ import { agreementStatus, isComplete } from "@/lib/agreements";
 import { listFiles, toSummary } from "@/lib/files";
 import { requireAdmin } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
-import { latestOffer, offerCounts, offerResponses } from "@/lib/patient-offers";
+import { eligibleClinicians, latestOffer, offerCounts, offerResponses } from "@/lib/patient-offers";
 import { insurersFor, SERVICES, type Service } from "@/lib/patient-options";
 import { practiceBilling } from "@/lib/practice";
 import { searchDiagnosisCodes, updatePatientDetails } from "../actions";
@@ -75,7 +75,11 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
     offerCounts(admin.practiceId),
   ]);
   const open = offer?.status === "open" ? offer : null;
-  const responses = open ? await offerResponses(open.id) : [];
+  const [responses, offeredTo] = open
+    ? await Promise.all([offerResponses(open.id), eligibleClinicians(admin.practiceId, open.service as Service)])
+    : [[], []];
+  // Clinicians who can take the patient and haven't answered yet.
+  const unanswered = offeredTo.filter((c) => !responses.some((r) => r.clinicianId === c.id)).map((c) => c.name);
   const first = patient.fullName.split(" ")[0];
   const signedRow = agreementRow[0] ?? null;
   const agreement = { status: agreementStatus(signedRow) };
@@ -203,8 +207,11 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
                       clinicianId: r.clinicianId,
                       name: r.name,
                       active: r.status === "active",
-                      acceptedAt: r.acceptedAt.toISOString(),
+                      answer: r.answer,
+                      reason: r.reason,
+                      answeredAt: r.answeredAt.toISOString(),
                     })),
+                    unanswered,
                   }
                 : null
             }

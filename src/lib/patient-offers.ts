@@ -8,10 +8,19 @@ import { clearNotifications, notifyAccount, notifyAdmins } from "@/lib/notificat
 import { OFFER_FOR, servicesForDiscipline, type Service } from "@/lib/patient-options";
 
 // Offering a patient (decided 31 Oct 2026): the admin offers a patient to every active clinician
-// whose discipline does the type of care (OFFER_FOR). Those who can take them accept, and the
-// admin assigns one, usually the first to accept. Emails never carry the patient's name.
+// whose discipline does the type of care (OFFER_FOR). Each is emailed a link to accept or decline;
+// the admin sees every answer (and is emailed it) and assigns one of the clinicians who accepted,
+// usually the first. Emails never carry the patient's name.
 
 export const OFFERS_PATH = "/new-patients";
+
+/**
+ * The clinician's link to one offered patient: New patients shows that card first. A query, not a
+ * #fragment, so it survives the sign-in redirect. The id isn't patient data.
+ */
+export const offerLink = (offerId: string) => `${OFFERS_PATH}?offer=${offerId}`;
+
+export type OfferAnswer = "accepted" | "declined";
 
 type Db = typeof db;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -53,14 +62,14 @@ export async function announceOffer(practiceId: string, offerId: string, service
       type: "patient_offer",
       refId: offerId,
       title: `New patient who needs ${words.care}`,
-      detail: "Accept if you can take them. Your admin assigns one of the clinicians who accept.",
-      href: OFFERS_PATH,
+      detail: "Accept or decline. Your admin assigns one of the clinicians who accept.",
+      href: offerLink(offerId),
     });
     try {
       const email = renderEmail({
         heading: `A new patient needs ${words.care}`,
-        intro: `Your practice has a new patient who needs ${words.care}. If you can take them, accept in Tiba, and your admin will assign one of the clinicians who accept. For the patient's privacy, their details are only in Tiba.`,
-        action: base ? { label: "See the patient in Tiba", url: `${base}${OFFERS_PATH}` } : undefined,
+        intro: `Your practice has a new patient who needs ${words.care}. Please open Tiba to see their details, then accept if you can take them or decline if you can't. Your admin will assign one of the clinicians who accept. For the patient's privacy, their details are only in Tiba.`,
+        action: base ? { label: "Accept or decline", url: `${base}${offerLink(offerId)}` } : undefined,
       });
       await sendEmail({ to: c.email, subject: `New patient: ${words.care}`, ...email });
     } catch {
@@ -87,7 +96,9 @@ export async function openOffersFor(practiceId: string, clinicianId: string, dis
       orderingDoctor: patients.orderingDoctor,
       referralDate: patients.referralDate,
       startOfCare: patients.startOfCare,
-      acceptedAt: patientOfferResponses.acceptedAt,
+      answer: patientOfferResponses.answer,
+      reason: patientOfferResponses.reason,
+      answeredAt: patientOfferResponses.answeredAt,
     })
     .from(patientOffers)
     .innerJoin(patients, eq(patients.id, patientOffers.patientId))
@@ -114,7 +125,7 @@ export async function openOffersFor(practiceId: string, clinicianId: string, dis
   return rows.map((r) => ({ ...r, diagnoses: diagnoses.filter((d) => d.patientId === r.patientId) }));
 }
 
-/** Open offers this clinician could accept and hasn't yet (the menu count). */
+/** Open offers this clinician hasn't answered yet (the menu count). */
 export async function openOfferCount(practiceId: string, clinicianId: string, discipline: string | null) {
   const services = servicesForDiscipline(discipline);
   if (!services.length) return 0;
@@ -139,10 +150,16 @@ export async function openOfferCount(practiceId: string, clinicianId: string, di
 }
 
 /**
- * A clinician accepts an offered patient: they can take them. The admin is told and assigns one
- * of the clinicians who accepted, usually the first. Accepting twice changes nothing.
+ * A clinician answers an offered patient: accept (they can take them) or decline, with an optional
+ * reason. They can change their answer while the offer is open. The admins are told each answer
+ * in Tiba and by email; the admin assigns one of the clinicians who accepted.
  */
-export async function acceptOffer(clinician: Account, offerId: string): Promise<{ ok: true; name: string } | { ok: false; message: string }> {
+export async function answerOffer(
+  clinician: Account,
+  offerId: string,
+  answer: OfferAnswer,
+  reason: string | null,
+): Promise<{ ok: true; name: string } | { ok: false; message: string }> {
   const [me] = await db.select({ discipline: clinicians.discipline }).from(clinicians).where(eq(clinicians.id, clinician.id));
   const [offer] = await db
     .select({ service: patientOffers.service, status: patientOffers.status, patientId: patients.id, name: patients.fullName, patientStatus: patients.status })
@@ -154,43 +171,50 @@ export async function acceptOffer(clinician: Account, offerId: string): Promise<
   if (!servicesForDiscipline(me?.discipline ?? null).includes(offer.service as Service)) {
     return { ok: false, message: "This patient needs a different discipline. Check your role in Settings." };
   }
-  const added = await db
-    .insert(patientOfferResponses)
-    .values({ offerId, clinicianId: clinician.id })
-    .onConflictDoNothing()
-    .returning({ id: patientOfferResponses.id });
-  if (added.length) await reportAccepted(clinician, offerId, offer.patientId, offer.name, offer.service as Service);
-  return { ok: true, name: offer.name };
-}
-
-/** Takes back an acceptance while the offer is still open. */
-export async function withdrawAcceptance(clinician: Account, offerId: string) {
-  const [offer] = await db
-    .select({ status: patientOffers.status })
-    .from(patientOffers)
-    .where(and(eq(patientOffers.id, offerId), eq(patientOffers.practiceId, clinician.practiceId)));
-  if (!offer || offer.status !== "open") return { ok: false as const, message: "Your admin has already assigned this patient." };
-  await db
-    .delete(patientOfferResponses)
+  const [before] = await db
+    .select({ answer: patientOfferResponses.answer })
+    .from(patientOfferResponses)
     .where(and(eq(patientOfferResponses.offerId, offerId), eq(patientOfferResponses.clinicianId, clinician.id)));
-  return { ok: true as const };
+  const why = answer === "declined" ? reason : null;
+  await db
+    .insert(patientOfferResponses)
+    .values({ offerId, clinicianId: clinician.id, answer, reason: why })
+    .onConflictDoUpdate({
+      target: [patientOfferResponses.offerId, patientOfferResponses.clinicianId],
+      set: { answer, reason: why, answeredAt: new Date() },
+    });
+  if (before?.answer !== answer) await reportAnswer(clinician, offerId, offer.patientId, offer.name, offer.service as Service, answer, why);
+  return { ok: true, name: offer.name };
 }
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
 
-async function reportAccepted(clinician: Account, offerId: string, patientId: string, patientName: string, service: Service) {
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(patientOfferResponses)
-    .where(eq(patientOfferResponses.offerId, offerId));
-  const n = row?.n ?? 1;
-  const place = n === 1 ? "First to accept" : `${ordinal(n)} to accept`;
+/** Tells the admins about an answer: a notification and an email, without the patient's name. */
+async function reportAnswer(
+  clinician: Account,
+  offerId: string,
+  patientId: string,
+  patientName: string,
+  service: Service,
+  answer: OfferAnswer,
+  reason: string | null,
+) {
+  const answers = await offerResponses(offerId);
+  const accepted = answers.filter((r) => r.answer === "accepted");
+  const place = accepted.findIndex((r) => r.clinicianId === clinician.id) + 1;
+  const words = OFFER_FOR[service];
+  const href = `/admin/patients/${patientId}#offer`;
+  const accepting = answer === "accepted";
   await notifyAdmins(clinician.practiceId, {
-    type: "offer_accepted",
+    type: accepting ? "offer_accepted" : "offer_declined",
     refId: offerId,
-    title: `${clinician.name} accepted ${patientName}`,
-    detail: `${place} · assign a clinician on the patient's page`,
-    href: `/admin/patients/${patientId}`,
+    title: `${clinician.name} ${answer} ${patientName}`,
+    detail: accepting
+      ? `${place === 1 ? "First" : ordinal(place)} to accept · assign a clinician on the patient's page`
+      : reason
+        ? `Reason: ${reason}`
+        : "No reason given",
+    href,
   });
   try {
     const admins = await db
@@ -198,12 +222,15 @@ async function reportAccepted(clinician: Account, offerId: string, patientId: st
       .from(clinicians)
       .where(and(eq(clinicians.practiceId, clinician.practiceId), eq(clinicians.role, "admin"), eq(clinicians.status, "active")));
     const base = appUrl();
-    const heading = `${clinician.name} accepted your new patient`;
+    const heading = `${clinician.name} ${answer} your new patient`;
+    const summary = `So far ${accepted.length} accepted and ${answers.length - accepted.length} declined.`;
     for (const admin of admins) {
       const email = renderEmail({
         heading,
-        intro: `${clinician.name} can take the patient you offered for ${OFFER_FOR[service].care} (${place.toLowerCase()}). Assign a clinician in Tiba; the first to accept is suggested. For the patient's privacy, their details are only in Tiba.`,
-        action: base ? { label: "Assign a clinician", url: `${base}/admin/patients/${patientId}` } : undefined,
+        intro: accepting
+          ? `${clinician.name} can take the patient you offered for ${words.care} (${place === 1 ? "the first" : `the ${ordinal(place)}`} to accept). ${summary} Assign a clinician in Tiba; the first to accept is suggested. For the patient's privacy, their details are only in Tiba.`
+          : `${clinician.name} can't take the patient you offered for ${words.care}. ${summary} Their reason, if they gave one, is in Tiba. For the patient's privacy, their details are only in Tiba.`,
+        action: base ? { label: accepting ? "Assign a clinician" : "See the answers", url: `${base}${href}` } : undefined,
       });
       await sendEmail({ to: admin.email, subject: heading, ...email }).catch(() => undefined);
     }
@@ -219,12 +246,14 @@ export function offerResponses(offerId: string) {
       clinicianId: clinicians.id,
       name: clinicians.name,
       status: clinicians.status,
-      acceptedAt: patientOfferResponses.acceptedAt,
+      answer: patientOfferResponses.answer,
+      reason: patientOfferResponses.reason,
+      answeredAt: patientOfferResponses.answeredAt,
     })
     .from(patientOfferResponses)
     .innerJoin(clinicians, eq(clinicians.id, patientOfferResponses.clinicianId))
     .where(eq(patientOfferResponses.offerId, offerId))
-    .orderBy(asc(patientOfferResponses.acceptedAt));
+    .orderBy(asc(patientOfferResponses.answeredAt));
 }
 
 /**
@@ -237,7 +266,7 @@ export async function assignFromOffer(
   clinicianId: string,
 ): Promise<{ ok: true; clinician: string } | { ok: false; message: string }> {
   const responses = await offerResponses(offerId);
-  const chosen = responses.find((r) => r.clinicianId === clinicianId);
+  const chosen = responses.find((r) => r.clinicianId === clinicianId && r.answer === "accepted");
   if (!chosen) return { ok: false, message: "Pick one of the clinicians who accepted." };
   if (chosen.status !== "active") return { ok: false, message: `${chosen.name}'s account isn't active any more. Pick someone else.` };
 
@@ -262,6 +291,7 @@ export async function assignFromOffer(
 
   await clearNotifications(admin.practiceId, "patient_offer", offerId).catch(() => undefined);
   await clearNotifications(admin.practiceId, "offer_accepted", offerId).catch(() => undefined);
+  await clearNotifications(admin.practiceId, "offer_declined", offerId).catch(() => undefined);
   await notifyAccount(admin.practiceId, clinicianId, {
     type: "offer_assigned",
     refId: offerId,
@@ -269,7 +299,7 @@ export async function assignFromOffer(
     detail: "Your admin assigned them to you after you accepted.",
     href: `/patients/${patient.id}`,
   });
-  for (const other of responses.filter((r) => r.clinicianId !== clinicianId)) {
+  for (const other of responses.filter((r) => r.clinicianId !== clinicianId && r.answer === "accepted")) {
     await notifyAccount(admin.practiceId, other.clinicianId, {
       type: "offer_assigned_other",
       refId: offerId,
@@ -338,6 +368,7 @@ export async function closeOffer(patientId: string, from: Db | Tx = db) {
   for (const o of closed) {
     await clearNotifications(o.practiceId, "patient_offer", o.id).catch(() => undefined);
     await clearNotifications(o.practiceId, "offer_accepted", o.id).catch(() => undefined);
+    await clearNotifications(o.practiceId, "offer_declined", o.id).catch(() => undefined);
   }
   return closed.length;
 }
@@ -370,7 +401,7 @@ export function waitingOffers(practiceId: string) {
       name: patients.fullName,
       service: patientOffers.service,
       offeredAt: patientOffers.offeredAt,
-      accepted: sql<number>`(select count(*)::int from patient_offer_responses r where r.offer_id = ${patientOffers.id})`,
+      accepted: sql<number>`(select count(*)::int from patient_offer_responses r where r.offer_id = ${patientOffers.id} and r.answer = 'accepted')`,
     })
     .from(patientOffers)
     .innerJoin(patients, eq(patients.id, patientOffers.patientId))

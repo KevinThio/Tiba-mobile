@@ -10,27 +10,39 @@ import { requireClinician } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
 import { openOffersFor } from "@/lib/patient-offers";
 import { OFFER_FOR, SERVICES, type Service } from "@/lib/patient-options";
-import { AcceptButton } from "./accept-button";
+import { cn } from "@/lib/utils";
+import { OfferAnswer } from "./offer-answer";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const fmt = (d: string) => DATE.format(new Date(`${d}T00:00:00Z`));
 
 /**
  * New patients (decided 31 Oct 2026): patients the admin offered for this clinician's discipline.
- * Clinicians accept the ones they can take, and the admin assigns one of them.
+ * Clinicians accept or decline each one (the email links to its card), and the admin assigns one
+ * of the clinicians who accepted.
  */
-export default async function NewPatientsPage() {
+export default async function NewPatientsPage({ searchParams }: PageProps<"/new-patients">) {
   const clinician = await requireClinician();
+  const { offer: picked } = await searchParams;
   const { discipline } = await clinicianSettings(clinician.id);
-  const offers = await openOffersFor(clinician.practiceId, clinician.id, discipline);
+  const all = await openOffersFor(clinician.practiceId, clinician.id, discipline);
+  // From the email's "Accept or decline" link (?offer=<id>): that patient first, highlighted.
+  const offers = [...all.filter((o) => o.id === picked), ...all.filter((o) => o.id !== picked)];
+  const missing = typeof picked === "string" && !all.some((o) => o.id === picked);
 
   return (
     <div className="grid grid-cols-1 gap-6">
       <PageHeader
         overline="Offered by your practice"
         title="New patients"
-        description="Patients your practice is offering to clinicians of your discipline. Accept the ones you can take; your admin assigns each patient, usually to the first to accept."
+        description="Patients your practice is offering to clinicians of your discipline. Accept the ones you can take and decline the others; your admin assigns each patient, usually to the first to accept."
       />
+
+      {missing && (
+        <p role="status" className="rounded-md bg-info px-4 py-3.5 text-info-foreground">
+          The patient in your email isn&apos;t waiting for an answer any more: your admin has assigned them or withdrawn the offer.
+        </p>
+      )}
 
       {!discipline ? (
         <EmptyState
@@ -53,21 +65,20 @@ export default async function NewPatientsPage() {
           {offers.map((o) => {
             const services = SERVICES.filter((s) => o.servicesOrdered.includes(s.value));
             return (
-              <li key={o.id} className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="text-h3">{o.fullName}</h2>
-                    <p className="text-small text-muted-foreground">
-                      Age {ageFrom(o.dateOfBirth)} · Needs {OFFER_FOR[o.service as Service].care} · Offered{" "}
-                      <RelativeDay iso={o.offeredAt.toISOString()} withTime />
-                    </p>
-                    {o.acceptedAt && (
-                      <Badge variant="success" className="mt-2">
-                        You accepted · waiting for your admin
-                      </Badge>
-                    )}
-                  </div>
-                  <AcceptButton offerId={o.id} name={o.fullName} accepted={Boolean(o.acceptedAt)} />
+              <li
+                key={o.id}
+                id={`offer-${o.id}`}
+                className={cn(
+                  "grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6",
+                  o.id === picked && "ring-3 ring-ring",
+                )}
+              >
+                <div className="min-w-0">
+                  <h2 className="text-h3">{o.fullName}</h2>
+                  <p className="text-small text-muted-foreground">
+                    Age {ageFrom(o.dateOfBirth)} · Needs {OFFER_FOR[o.service as Service].care} · Offered{" "}
+                    <RelativeDay iso={o.offeredAt.toISOString()} withTime />
+                  </p>
                 </div>
                 <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Detail label="Home address">{o.address ?? "Not added yet"}</Detail>
@@ -89,6 +100,9 @@ export default async function NewPatientsPage() {
                     ))}
                   </div>
                 )}
+                <div className="border-t border-border-subtle pt-4">
+                  <OfferAnswer offerId={o.id} name={o.fullName} answer={o.answer} reason={o.reason} />
+                </div>
               </li>
             );
           })}

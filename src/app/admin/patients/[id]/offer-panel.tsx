@@ -18,12 +18,14 @@ type OpenOffer = {
   service: Service;
   offeredTo: number;
   offeredAt: string;
-  responses: { clinicianId: string; name: string; active: boolean; acceptedAt: string }[];
+  responses: { clinicianId: string; name: string; active: boolean; answer: "accepted" | "declined"; reason: string | null; answeredAt: string }[];
+  unanswered: string[];
 };
 
 /**
  * Offer to clinicians, on the admin's patient page: send the patient to every clinician who does
- * a type of care, see who accepted (first first) and assign one of them.
+ * a type of care, see each answer (accepted first first, declined with reasons, not answered yet)
+ * and assign one of the clinicians who accepted.
  */
 export function OfferPanel({
   patientId,
@@ -61,7 +63,9 @@ export function OfferPanel({
 
   if (open) {
     const words = OFFER_FOR[open.service];
-    const firstActive = open.responses.find((r) => r.active);
+    const accepted = open.responses.filter((r) => r.answer === "accepted");
+    const declined = open.responses.filter((r) => r.answer === "declined");
+    const firstActive = accepted.find((r) => r.active);
     return (
       <div className="grid gap-4">
         <div role="status" className="flex gap-3 rounded-md bg-info px-4 py-3.5 text-info-foreground">
@@ -71,14 +75,17 @@ export function OfferPanel({
               Offered for {words.care} to {open.offeredTo} {open.offeredTo === 1 ? "clinician" : words.who},{" "}
               <RelativeDay iso={open.offeredAt} withTime />.
             </span>{" "}
-            {open.responses.length
+            {accepted.length
               ? `Assign ${first} to one of the clinicians who accepted. The first to accept is suggested.`
-              : "Nobody has accepted yet. We'll email you when someone does."}
+              : "Nobody has accepted yet. We'll email you each answer."}
           </p>
         </div>
-        {open.responses.length > 0 && (
-          <ol className="grid grid-cols-1 rounded-md border border-border-subtle">
-            {open.responses.map((r, i) => (
+        <p className="text-small text-muted-foreground">
+          {accepted.length} accepted · {declined.length} declined · {open.unanswered.length} not answered yet
+        </p>
+        {accepted.length > 0 && (
+          <ol aria-label="Accepted" className="grid grid-cols-1 rounded-md border border-border-subtle">
+            {accepted.map((r, i) => (
               <li key={r.clinicianId} className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-4 py-3 last:border-b-0">
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 font-semibold">
@@ -87,7 +94,7 @@ export function OfferPanel({
                     {!r.active && <Badge variant="neutral">Not active</Badge>}
                   </p>
                   <p className="text-small text-muted-foreground">
-                    Accepted <RelativeDay iso={r.acceptedAt} withTime />
+                    Accepted <RelativeDay iso={r.answeredAt} withTime />
                   </p>
                 </div>
                 <Button
@@ -108,6 +115,27 @@ export function OfferPanel({
               </li>
             ))}
           </ol>
+        )}
+        {declined.length > 0 && (
+          <div className="grid gap-2">
+            <h3 className="text-small font-semibold">Declined</h3>
+            <ul className="grid gap-2">
+              {declined.map((r) => (
+                <li key={r.clinicianId} className="text-small">
+                  <span className="font-semibold">{r.name}</span>{" "}
+                  <span className="text-muted-foreground">
+                    · <RelativeDay iso={r.answeredAt} withTime />
+                    {r.reason ? ` · “${r.reason}”` : " · No reason given"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {open.unanswered.length > 0 && (
+          <p className="text-small text-muted-foreground">
+            <span className="font-semibold text-foreground">Not answered yet:</span> {open.unanswered.join(", ")}
+          </p>
         )}
         {error && <FormAlert>{error}</FormAlert>}
         <Button

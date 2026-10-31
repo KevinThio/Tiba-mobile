@@ -3,24 +3,25 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireClinician } from "@/lib/auth";
-import { acceptOffer, withdrawAcceptance } from "@/lib/patient-offers";
+import { answerOffer } from "@/lib/patient-offers";
 
-const BAD_ID = { ok: false as const, message: "Something went wrong. Please refresh the page and try again." };
+const answerInput = z.object({
+  offerId: z.uuid(),
+  answer: z.enum(["accepted", "declined"]),
+  reason: z
+    .string()
+    .trim()
+    .max(300, "Keep the reason under 300 characters.")
+    .optional()
+    .transform((v) => v || null),
+});
 
-/** Accept a patient the admin offered: you can take them, and the admin assigns one clinician. */
-export async function acceptPatient(input: { offerId: string }) {
+/** Accept or decline a patient the admin offered. The admin is told, and assigns one clinician who accepted. */
+export async function answerPatientOffer(input: z.input<typeof answerInput>) {
   const clinician = await requireClinician();
-  if (!z.uuid().safeParse(input.offerId).success) return BAD_ID;
-  const result = await acceptOffer(clinician, input.offerId);
-  revalidatePath("/", "layout");
-  return result;
-}
-
-/** Take back an acceptance before the admin assigns the patient. */
-export async function withdrawPatient(input: { offerId: string }) {
-  const clinician = await requireClinician();
-  if (!z.uuid().safeParse(input.offerId).success) return BAD_ID;
-  const result = await withdrawAcceptance(clinician, input.offerId);
+  const parsed = answerInput.safeParse(input);
+  if (!parsed.success) return { ok: false as const, message: parsed.error.issues[0]?.message ?? "Please refresh the page and try again." };
+  const result = await answerOffer(clinician, parsed.data.offerId, parsed.data.answer, parsed.data.reason);
   revalidatePath("/", "layout");
   return result;
 }
