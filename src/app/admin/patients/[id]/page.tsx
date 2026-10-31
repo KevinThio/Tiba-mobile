@@ -1,5 +1,5 @@
 import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
-import { TriangleAlert } from "lucide-react";
+import { Megaphone, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -16,7 +16,8 @@ import { agreementStatus, isComplete } from "@/lib/agreements";
 import { listFiles, toSummary } from "@/lib/files";
 import { requireAdmin } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
-import { insurersFor, SERVICES } from "@/lib/patient-options";
+import { latestOffer } from "@/lib/patient-offers";
+import { insurersFor, OFFER_FOR, SERVICES, type Service } from "@/lib/patient-options";
 import { practiceBilling } from "@/lib/practice";
 import { searchDiagnosisCodes, updatePatientDetails } from "../actions";
 import { CareForm, StatusButton } from "./patient-forms";
@@ -54,11 +55,11 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
       flaggedAt: patients.duplicateFlaggedAt,
     })
     .from(patients)
-    .innerJoin(clinicians, eq(clinicians.id, patients.clinicianId))
+    .leftJoin(clinicians, eq(clinicians.id, patients.clinicianId))
     .where(and(eq(patients.id, id), eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")));
   if (!patient) notFound();
 
-  const [diagnoses, team, billing, agreementRow, documents] = await Promise.all([
+  const [diagnoses, team, billing, agreementRow, documents, offer] = await Promise.all([
     db
       .select({ code: diagnosisCodes.code, description: diagnosisCodes.description })
       .from(patientDiagnoses)
@@ -69,7 +70,9 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
     practiceBilling(admin.practiceId),
     db.select().from(serviceAgreements).where(eq(serviceAgreements.patientId, id)),
     listFiles(admin.practiceId, "patient", id),
+    latestOffer(id),
   ]);
+  const offerWords = offer ? OFFER_FOR[offer.service as Service] : null;
   const first = patient.fullName.split(" ")[0];
   const signedRow = agreementRow[0] ?? null;
   const agreement = { status: agreementStatus(signedRow) };
@@ -92,7 +95,7 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
     <div className="grid grid-cols-1 gap-6">
       <PageHeader
         back={{ href: "/admin/patients", label: "Patients" }}
-        overline={`${patient.status === "active" ? "Active" : "Discharged"} · ${patient.clinicianName}`}
+        overline={`${patient.status === "active" ? "Active" : "Discharged"} · ${patient.clinicianName ?? (offer?.status === "open" ? "Offered to clinicians" : "No clinician yet")}`}
         title={patient.fullName}
         actions={<StatusButton patientId={patient.id} name={patient.fullName} status={patient.status as "active" | "discharged"} />}
       />
@@ -160,12 +163,29 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
 
         <section className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
           <h2 className="text-h3">Care</h2>
+          {offer?.status === "open" && offerWords && (
+            <div role="status" className="flex gap-3 rounded-md bg-info px-4 py-3.5 text-info-foreground">
+              <Megaphone className="mt-0.5 size-5 shrink-0" aria-hidden />
+              <p>
+                <span className="font-semibold">
+                  Offered to {offer.offeredTo} {offer.offeredTo === 1 ? "clinician" : offerWords.who} on {DATE.format(offer.offeredAt)}.
+                </span>{" "}
+                The first to accept sees {first}, and we&apos;ll tell you who. To decide yourself, pick a clinician below.
+              </p>
+            </div>
+          )}
+          {offer?.status === "taken" && offerWords && patient.clinicianName === offer.takenBy && (
+            <p className="text-small text-muted-foreground">
+              {offer.takenBy} accepted {first} on {DATE.format(offer.closedAt!)}, first of the {offer.offeredTo}{" "}
+              {offer.offeredTo === 1 ? "clinician" : offerWords.who} offered.
+            </p>
+          )}
           <CareForm
             patientId={patient.id}
             clinicians={team}
             insurers={insurers}
             initial={{
-              clinicianId: patient.clinicianId,
+              clinicianId: patient.clinicianId ?? "",
               insurer: patient.insurer ?? "",
               referralDate: patient.referralDate ?? "",
               startOfCare: patient.startOfCare ?? "",

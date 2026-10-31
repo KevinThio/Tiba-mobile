@@ -6,11 +6,14 @@ import { requireAdmin } from "@/lib/auth";
 import { insurersFor } from "@/lib/patient-options";
 import { AddPatientForm } from "./add-patient-form";
 
-/** Admin Add patient (spec v2 section 4b): the patient joins the practice for one clinician. */
+/**
+ * Admin Add patient (spec v2 section 4b): the patient joins the practice for one clinician, or is
+ * offered to every clinician who does a type of care (src/lib/patient-offers.ts).
+ */
 export default async function AdminAddPatientPage() {
   const admin = await requireAdmin();
   const team = await db
-    .select({ id: clinicians.id, name: clinicians.name })
+    .select({ id: clinicians.id, name: clinicians.name, discipline: clinicians.discipline })
     .from(clinicians)
     .where(
       and(eq(clinicians.practiceId, admin.practiceId), eq(clinicians.role, "clinician"), eq(clinicians.status, "active")),

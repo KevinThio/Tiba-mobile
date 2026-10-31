@@ -1,8 +1,9 @@
-import { ChevronRight, CircleAlert, FilePen, FileSignature, FileUp, Landmark, MapPinX, MessagesSquare, ReceiptText, Star, UserPlus, UserRoundCheck, UserX, UsersRound, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, FilePen, FileSignature, FileUp, Landmark, MapPinX, Megaphone, MessagesSquare, ReceiptText, Star, UserPlus, UserRoundCheck, UserX, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { invoiceCounts, OVERDUE_DAYS, unbilledOverdue } from "@/lib/admin-billing";
+import { waitingOffers } from "@/lib/patient-offers";
 import { requireAdmin } from "@/lib/auth";
 import { unreadOfTypes } from "@/lib/notifications";
 import { agreementsToSign, deactivatedClinicians, oldestNewReview, visitsAroundToday } from "@/lib/overview";
@@ -46,14 +47,27 @@ export default async function AdminOverviewPage() {
     oldestNewReview(practiceId),
     visitsAroundToday(practiceId),
   ]);
-  const [contractNews, portal, referral, clockFlags] = await Promise.all([
+  const [contractNews, portal, referral, clockFlags, offered] = await Promise.all([
     unreadOfTypes(id, ["contract_message", "contract_signed"]),
     portalCounts(practiceId),
     portalCounts(practiceId, "referrer"),
     unreadOfTypes(id, ["clock_flag"]),
+    waitingOffers(practiceId),
   ]);
 
   const items: Attention[] = [];
+  if (offered.length > 0) {
+    items.push({
+      href: offered.length === 1 ? `/admin/patients/${offered[0].patientId}` : "/admin/patients",
+      icon: Megaphone,
+      title:
+        offered.length === 1
+          ? `${offered[0].name} is waiting for a clinician to accept`
+          : `${offered.length} new patients are waiting for a clinician to accept`,
+      detail: "You offered them to your clinicians. You can still pick a clinician yourself.",
+      badge: { label: "Offered", variant: "info" },
+    });
+  }
   if (clockFlags.length > 0) {
     items.push({
       href: "/admin/visits",

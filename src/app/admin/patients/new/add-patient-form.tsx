@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, TriangleAlert, UserPlus } from "lucide-react";
+import { Check, Megaphone, TriangleAlert, UserCheck, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { ChoiceChip } from "@/components/choice-chip";
 import { DiagnosisPicker, type DiagnosisOption } from "@/components/diagnosis-picker";
 import { EmptyState } from "@/components/empty-state";
 import { FormAlert } from "@/components/form-alert";
@@ -12,7 +13,7 @@ import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { aideNeedsSkilledCare, SERVICES, type Service } from "@/lib/patient-options";
+import { aideNeedsSkilledCare, OFFER_FOR, SERVICES, type Service } from "@/lib/patient-options";
 import { cn } from "@/lib/utils";
 import { addPatient, searchDiagnosisCodes } from "../actions";
 
@@ -22,7 +23,7 @@ export function AddPatientForm({
   clinicians,
   insurers,
 }: {
-  clinicians: { id: string; name: string }[];
+  clinicians: { id: string; name: string; discipline: string | null }[];
   insurers: string[];
 }) {
   const router = useRouter();
@@ -32,6 +33,9 @@ export function AddPatientForm({
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<{ name: string; dateOfBirth: string } | null>(null);
   const [pending, setPending] = useState(false);
+  // Pick a clinician, or offer the patient to every clinician who does one type of care.
+  const [who, setWho] = useState<"pick" | "offer">("pick");
+  const [offerService, setOfferService] = useState<Service | "">("");
   const today = new Date().toISOString().slice(0, 10);
 
   if (clinicians.length === 0) {
@@ -64,7 +68,8 @@ export function AddPatientForm({
       dateOfBirth: get("dateOfBirth"),
       phone: get("phone"),
       email: get("email"),
-      clinicianId: get("clinicianId"),
+      clinicianId: who === "pick" ? get("clinicianId") : "",
+      offerService: who === "offer" ? offerService : "",
       insurer: get("insurer"),
       diagnosisCode: diagnosis?.code ?? "",
       servicesOrdered: services,
@@ -79,11 +84,19 @@ export function AddPatientForm({
       if ("duplicate" in result) return setDuplicate(result.duplicate);
       return setError(result.message);
     }
-    toast.success(`${result.name} is added to your practice.`);
+    toast.success(
+      result.offeredTo
+        ? `${result.name} is offered to ${result.offeredTo} ${result.offeredTo === 1 ? "clinician" : "clinicians"}. We'll tell you when one accepts.`
+        : `${result.name} is added to your practice.`,
+    );
     router.push("/admin/patients");
   }
 
-  const aideProblem = aideNeedsSkilledCare(services);
+  // The type of care offered counts as ordered.
+  const ordered = offerService && who === "offer" && !services.includes(offerService) ? [...services, offerService] : services;
+  const aideProblem = aideNeedsSkilledCare(ordered);
+  const canAccept = (s: Service) => clinicians.filter((c) => c.discipline && OFFER_FOR[s].disciplines.includes(c.discipline)).length;
+  const offerCount = offerService ? canAccept(offerService) : 0;
 
   return (
     <form
@@ -107,15 +120,54 @@ export function AddPatientForm({
 
       <section className="grid gap-5 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
         <h2 className="text-h3">Care</h2>
+        <fieldset className="grid gap-3">
+          <legend className="mb-2 text-sm font-medium">Who will see them</legend>
+          <div role="radiogroup" aria-label="Who will see them" className="flex flex-wrap gap-2">
+            <ChoiceChip single on={who === "pick"} onClick={() => setWho("pick")}>
+              <UserCheck className="size-4" aria-hidden /> Pick a clinician
+            </ChoiceChip>
+            <ChoiceChip single on={who === "offer"} onClick={() => setWho("offer")}>
+              <Megaphone className="size-4" aria-hidden /> Offer to clinicians
+            </ChoiceChip>
+          </div>
+          {who === "pick" ? (
+            <SelectField label="Clinician" name="clinicianId" required>
+              <NativeSelectOption value="">Pick a clinician</NativeSelectOption>
+              {clinicians.map((c) => (
+                <NativeSelectOption key={c.id} value={c.id}>
+                  {c.name}
+                </NativeSelectOption>
+              ))}
+            </SelectField>
+          ) : (
+            <div className="grid gap-2">
+              <Label htmlFor="offerService">Type of care</Label>
+              <NativeSelect
+                id="offerService"
+                className="w-full"
+                required
+                value={offerService}
+                onChange={(e) => setOfferService(e.target.value as Service | "")}
+              >
+                <NativeSelectOption value="">Pick the type of care</NativeSelectOption>
+                {SERVICES.map((s) => {
+                  const n = canAccept(s.value);
+                  return (
+                    <NativeSelectOption key={s.value} value={s.value} disabled={n === 0}>
+                      {s.label} · {n === 0 ? "nobody yet" : `${n} ${n === 1 ? "clinician" : "clinicians"}`}
+                    </NativeSelectOption>
+                  );
+                })}
+              </NativeSelect>
+              <p className="text-sm text-muted-foreground">
+                {offerService
+                  ? `We'll email the ${offerCount} ${OFFER_FOR[offerService].who} in your practice. The first to accept sees ${offerCount === 1 ? "the patient" : "them"}, and we'll tell you who.`
+                  : "Every clinician who does this type of care is emailed. The first to accept becomes the patient's clinician. Clinicians need their role set in Settings to be offered patients."}
+              </p>
+            </div>
+          )}
+        </fieldset>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <SelectField label="Clinician" name="clinicianId" required>
-            <NativeSelectOption value="">Pick a clinician</NativeSelectOption>
-            {clinicians.map((c) => (
-              <NativeSelectOption key={c.id} value={c.id}>
-                {c.name}
-              </NativeSelectOption>
-            ))}
-          </SelectField>
           <SelectField label="Insurer" name="insurer" defaultValue={insurers[0]}>
             {insurers.map((i) => (
               <NativeSelectOption key={i} value={i}>
@@ -132,12 +184,14 @@ export function AddPatientForm({
           </legend>
           <div className="flex flex-wrap gap-2">
             {SERVICES.map((s) => {
-              const on = services.includes(s.value);
+              const on = ordered.includes(s.value);
+              const locked = who === "offer" && s.value === offerService;
               return (
                 <button
                   key={s.value}
                   type="button"
                   aria-pressed={on}
+                  disabled={locked}
                   onClick={() => setServices((list) => (on ? list.filter((x) => x !== s.value) : [...list, s.value]))}
                   className={cn(
                     "inline-flex min-h-11 items-center gap-1.5 rounded-full border-[1.5px] px-4 text-small font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring",
@@ -185,8 +239,8 @@ export function AddPatientForm({
 
       <div className="flex flex-wrap gap-2">
         <Button type="submit" size="lg" disabled={pending || aideProblem}>
-          <Check aria-hidden />
-          {pending ? "Adding…" : "Add patient"}
+          {who === "offer" ? <Megaphone aria-hidden /> : <Check aria-hidden />}
+          {pending ? "Adding…" : who === "offer" ? "Add and offer to clinicians" : "Add patient"}
         </Button>
         <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/admin/patients" />}>
           Cancel

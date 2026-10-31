@@ -205,10 +205,9 @@ export const patients = pgTable(
     practiceId: uuid("practice_id")
       .notNull()
       .references(() => practices.id, { onDelete: "restrict" }),
-    // The assigned clinician.
-    clinicianId: text("clinician_id")
-      .notNull()
-      .references(() => clinicians.id, { onDelete: "restrict" }),
+    // The assigned clinician. Null while the admin offers a new patient to the practice's
+    // clinicians (patient_offers) and nobody has accepted yet.
+    clinicianId: text("clinician_id").references(() => clinicians.id, { onDelete: "restrict" }),
     fullName: text("full_name").notNull(),
     // Age is calculated from this, never stored.
     dateOfBirth: date("date_of_birth").notNull(),
@@ -857,3 +856,36 @@ export const serviceAgreements = pgTable("service_agreements", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Offering a new patient (decided 31 Oct 2026; src/lib/patient-offers.ts): instead of picking a
+// clinician, the admin offers the patient to every active clinician whose discipline does that
+// type of care (`service`, a SERVICES value). Each is emailed; the first to accept becomes the
+// patient's clinician. "closed": the admin assigned someone else, or discharged the patient.
+export const patientOffers = pgTable(
+  "patient_offers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "cascade" }),
+    patientId: uuid("patient_id")
+      .notNull()
+      .references(() => patients.id, { onDelete: "cascade" }),
+    service: text("service").notNull(),
+    status: text("status", { enum: ["open", "taken", "closed"] }).notNull().default("open"),
+    offeredById: text("offered_by_id").references(() => clinicians.id, { onDelete: "set null" }),
+    // How many clinicians it went to when it was offered.
+    offeredTo: integer("offered_to").notNull(),
+    offeredAt: timestamp("offered_at", { withTimezone: true }).notNull().defaultNow(),
+    takenById: text("taken_by_id").references(() => clinicians.id, { onDelete: "restrict" }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (t) => [
+    // One open offer per patient at a time.
+    uniqueIndex("patient_offers_open_idx").on(t.patientId).where(sql`status = 'open'`),
+    index("patient_offers_practice_idx").on(t.practiceId, t.status),
+    check("patient_offers_status_check", sql`${t.status} in ('open', 'taken', 'closed')`),
+    check("patient_offers_closed_check", sql`(${t.status} = 'open') = (${t.closedAt} is null)`),
+    check("patient_offers_taken_check", sql`(${t.status} = 'taken') = (${t.takenById} is not null)`),
+  ],
+);

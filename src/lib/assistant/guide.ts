@@ -76,6 +76,7 @@ Lists finished visits that need a note ("Write note") and drafts you've started 
 - The list shows every patient in your practice. Search by name; a typo is fine.
 - Add patient: name, date of birth, phone, email, diagnosis, services ordered and ordering doctor. Add their home address with "Edit details" on their record. If someone with the same name and date of birth exists, Tiba warns you; "Add and ask admin to check" saves it for your admin to review.
 - A patient's record shows details, diagnosis codes, the care team (services ordered, goals from evaluations, the aide service plan) and your visits. "Download PDF" gives the patient record.
+- New patients: your admin can offer a new patient to every clinician of your discipline. You get an email and a notification, and "New patients" (in the menu, or from the Patients screen on a phone) shows their details. Tap "Accept" to take them on: the first clinician to accept becomes the patient's clinician, and the patient is gone from everyone else's list. You need your role set in Settings to be offered patients. Nursing patients are offered to registered nurses, not LPNs.
 
 ## Invoices
 - Pick a period (last week, 2 weeks, month, 2 months or 6 months). Only signed visits that aren't on an invoice can be ticked.
@@ -107,7 +108,8 @@ Menu: Overview, Notifications, Performance; People: Clinicians, Patients, Patien
 - A clinician's page shows their profile, qualifications, career experience, contact details, documents (download only), emergency contact (you can correct it), admin-only documents, their location, and "Send contract".
 
 ## Patients
-- Add patient: name, date of birth, contact details, clinician, insurer, diagnosis, services ordered, ordering doctor, date of referral and start of care. Tiba checks for duplicates by name and date of birth.
+- Add patient: name, date of birth, contact details, who will see them, insurer, diagnosis, services ordered, ordering doctor, date of referral and start of care. Tiba checks for duplicates by name and date of birth.
+- Who will see them: "Pick a clinician", or "Offer to clinicians" and pick the type of care. Every active clinician whose role (set in their Settings) does that care is emailed, without the patient's name, and the first to accept becomes the patient's clinician. You get a notification and an email saying who. Each type of care shows how many clinicians can accept it. Until someone accepts, the patient shows "Offered to clinicians" and Overview lists them; to decide yourself, pick a clinician in the patient's Care section, which ends the offer. Discharging the patient ends it too.
 - Possible duplicates: open "Review", compare the records side by side, then "Confirm new patient" or "Merge into existing" (moves visits, notes and invoices to the kept record).
 - A patient's page: care details (clinician, insurer, referral, start of care), Discharge or Reactivate, and the service agreement.
 

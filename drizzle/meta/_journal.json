@@ -260,6 +260,13 @@
       "when": 1793434747573,
       "tag": "0036_lock_visit_clocks",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793441999902,
+      "tag": "0037_patient_offers",
+      "breakpoints": true
     }
   ]
 }

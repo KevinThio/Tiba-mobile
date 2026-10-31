@@ -175,7 +175,7 @@ export async function renderPatientRecordPdf(patientId: string, clinician: { id:
     ["Phone", patient.phone ?? "Not added"],
     ["Email", patient.email ?? "Not added"],
     ["Ordering doctor", patient.orderingDoctor ?? "Not added"],
-    ["Assigned clinician", patient.assignedName],
+    ["Assigned clinician", patient.assignedName ?? "Not assigned yet"],
     ["Prepared by", `${clinician.name}, ${day(new Date(), timeZone)}`],
   ];
   const plan =

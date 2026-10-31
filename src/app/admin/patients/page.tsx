@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
+import { and, asc, eq, isNotNull, ne, sql } from "drizzle-orm";
 import { UserPlus } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
@@ -23,6 +23,7 @@ export default async function AdminPatientsPage() {
       startOfCare: patients.startOfCare,
       createdAt: patients.createdAt,
       clinicianName: clinicians.name,
+      offered: sql<boolean>`exists (select 1 from patient_offers o where o.patient_id = ${patients.id} and o.status = 'open')`,
       possibleDuplicate: isNotNull(patients.duplicateFlaggedAt),
       agreementPatient: serviceAgreements.patientSignature,
       agreementAdmin: serviceAgreements.adminSignature,
@@ -30,7 +31,7 @@ export default async function AdminPatientsPage() {
       agreementDetails: isNotNull(serviceAgreements.details),
     })
     .from(patients)
-    .innerJoin(clinicians, eq(clinicians.id, patients.clinicianId))
+    .leftJoin(clinicians, eq(clinicians.id, patients.clinicianId))
     .leftJoin(serviceAgreements, eq(serviceAgreements.patientId, patients.id))
     .where(and(eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")))
     .orderBy(asc(patients.fullName));

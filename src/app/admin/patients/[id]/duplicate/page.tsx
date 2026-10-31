@@ -41,7 +41,7 @@ export default async function DuplicateReviewPage({ params }: PageProps<"/admin/
       flaggedAt: patients.duplicateFlaggedAt,
     })
     .from(patients)
-    .innerJoin(clinicians, eq(clinicians.id, patients.clinicianId))
+    .leftJoin(clinicians, eq(clinicians.id, patients.clinicianId))
     .leftJoin(addedBy, eq(addedBy.id, patients.addedById))
     .where(and(eq(patients.id, id), eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")));
   if (!entry) notFound();
@@ -78,7 +78,7 @@ export default async function DuplicateReviewPage({ params }: PageProps<"/admin/
           clinician: clinicians.name,
         })
         .from(patients)
-        .innerJoin(clinicians, eq(clinicians.id, patients.clinicianId))
+        .leftJoin(clinicians, eq(clinicians.id, patients.clinicianId))
         .where(and(eq(patients.id, entry.duplicateOfId), eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")))
     : [];
   const [{ visits }] = await db.select({ visits: count() }).from(appointments).where(eq(appointments.patientId, entry.id));

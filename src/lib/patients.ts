@@ -52,7 +52,7 @@ export async function patientRecord(patientId: string, practiceId: string, clini
       duplicateFlaggedAt: patients.duplicateFlaggedAt,
     })
     .from(patients)
-    .innerJoin(clinicians, eq(clinicians.id, patients.clinicianId))
+    .leftJoin(clinicians, eq(clinicians.id, patients.clinicianId))
     .where(and(eq(patients.id, patientId), eq(patients.practiceId, practiceId)));
   if (!patient) return null;
 

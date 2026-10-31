@@ -39,7 +39,7 @@ export async function loadAgreement(patientId: string, practiceId: string, admin
       practiceName: practices.name,
     })
     .from(patients)
-    .innerJoin(clinicians, eq(clinicians.id, patients.clinicianId))
+    .leftJoin(clinicians, eq(clinicians.id, patients.clinicianId))
     .innerJoin(practices, eq(practices.id, patients.practiceId))
     .where(and(eq(patients.id, patientId), eq(patients.practiceId, practiceId), ne(patients.status, "merged")));
   if (!p) return null;

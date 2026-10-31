@@ -79,6 +79,11 @@ export function CareForm({
       <div className="grid gap-2">
         <Label htmlFor="clinicianId">Clinician</Label>
         <NativeSelect id="clinicianId" className="w-full" value={care.clinicianId} onChange={(e) => set({ clinicianId: e.target.value })}>
+          {!saved.clinicianId && (
+            <NativeSelectOption value="" disabled>
+              Not assigned yet
+            </NativeSelectOption>
+          )}
           {clinicians.map((c) => (
             <NativeSelectOption key={c.id} value={c.id}>
               {c.name}

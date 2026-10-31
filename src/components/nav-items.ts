@@ -17,6 +17,7 @@ import {
   Settings,
   Star,
   Stethoscope,
+  UserRoundPlus,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/appointments", label: "Appointments", icon: CalendarDays },
   { href: "/notes", label: "Notes to do", icon: FilePenLine },
   { href: "/patients", label: "Patients", icon: UsersRound },
+  { href: "/new-patients", label: "New patients", icon: UserRoundPlus },
   { href: "/invoices", label: "Invoices", icon: ReceiptText },
   { href: "/contracts", label: "Contracts", icon: FileSignature },
   { href: "/notifications", label: "Notifications", icon: Bell },
@@ -50,7 +52,8 @@ export const NAV_GROUPS: NavGroup[] = [{ items: NAV_ITEMS }];
 export const TAB_ITEMS: TabItem[] = [
   { href: "/appointments", label: "Visits", icon: CalendarDays },
   { href: "/notes", label: "Notes", icon: FilePenLine },
-  { href: "/patients", label: "Patients", icon: UsersRound },
+  // New patients is reached from the Patients screen on phones.
+  { href: "/patients", label: "Patients", icon: UsersRound, also: ["/new-patients"] },
   {
     href: "/settings",
     label: "Account",

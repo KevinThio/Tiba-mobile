@@ -62,7 +62,9 @@ export default async function PatientRecordPage({ params }: PageProps<"/patients
     ? `Your patient since ${MONTH.format(firstVisit.startsAt)}`
     : patient.assignedId === clinician.id
       ? `Your patient since ${MONTH.format(patient.createdAt)}`
-      : `${patient.assignedName}'s patient`;
+      : patient.assignedName
+        ? `${patient.assignedName}'s patient`
+        : "Waiting for a clinician";
   const draft = visits.find((v) => v.status === "draft");
   const needsNote = visits.find((v) => v.status === "needs-note");
   const invoiceable = visits.some((v) => v.status === "signed");
@@ -145,7 +147,7 @@ export default async function PatientRecordPage({ params }: PageProps<"/patients
             <Detail label="Email">{patient.email ?? <Missing />}</Detail>
             <Detail label="Ordering doctor">{patient.orderingDoctor ?? <Missing />}</Detail>
             <Detail label="Assigned clinician">
-              {patient.assignedId === clinician.id ? "You" : patient.assignedName}
+              {patient.assignedId === clinician.id ? "You" : (patient.assignedName ?? "Waiting for a clinician to accept")}
             </Detail>
           </dl>
         </Card>

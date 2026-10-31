@@ -22,7 +22,8 @@ type Row = {
   referralDate: string | null;
   startOfCare: string | null;
   createdAt: string;
-  clinicianName: string;
+  clinicianName: string | null;
+  offered: boolean;
   possibleDuplicate: boolean;
   agreement: AgreementStatus;
 };
@@ -144,6 +145,8 @@ function PatientRow({ patient: p }: { patient: Row }) {
           </Link>
           {p.possibleDuplicate ? (
             <Badge variant="warning">Possible duplicate</Badge>
+          ) : !p.clinicianName ? (
+            <Badge variant={p.offered ? "info" : "warning"}>{p.offered ? "Offered to clinicians" : "No clinician"}</Badge>
           ) : (
             <Badge variant={AGREEMENT_BADGE[p.agreement].variant}>{AGREEMENT_BADGE[p.agreement].label}</Badge>
           )}

@@ -4,12 +4,13 @@ import { and, asc, eq, ilike, isNotNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, patients } from "@/db/schema";
+import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, patientOffers, patients } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { clearNotifications } from "@/lib/notifications";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
 import { savePatientDetails, type PatientDetailsInput, type PatientDetailsResult } from "@/lib/patient-edit";
-import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
+import { announceOffer, closeOffer, eligibleClinicians } from "@/lib/patient-offers";
+import { aideNeedsSkilledCare, OFFER_FOR, SERVICE_VALUES } from "@/lib/patient-options";
 
 export type DiagnosisOption = { code: string; description: string };
 
@@ -44,7 +45,9 @@ const patientInput = z.object({
     .optional()
     .transform((v) => v || null)
     .pipe(z.email("Add an @, e.g. amina@mail.com.").nullable()),
-  clinicianId: z.string().min(1, "Pick the clinician who will see them."),
+  // Either a clinician, or a type of care to offer the patient to every clinician who does it.
+  clinicianId: optional,
+  offerService: z.enum(SERVICE_VALUES).optional().or(z.literal("")).transform((v) => v || null),
   insurer: optional,
   diagnosisCode: optional,
   servicesOrdered: z.array(z.enum(SERVICE_VALUES)).max(SERVICE_VALUES.length),
@@ -57,12 +60,13 @@ const patientInput = z.object({
 
 export type AddPatientInput = z.input<typeof patientInput>;
 export type AddPatientResult =
-  | { ok: true; name: string }
+  | { ok: true; name: string; offeredTo?: number }
   | { ok: false; message: string }
   | { ok: false; duplicate: { name: string; dateOfBirth: string } };
 
 /**
- * Adds a patient to the practice for the chosen clinician (spec v2 Add patient, admin).
+ * Adds a patient to the practice for the chosen clinician, or offers them to every clinician who
+ * does the chosen type of care (the first to accept sees them; src/lib/patient-offers.ts) (spec v2 Add patient, admin).
  * The same name and date of birth as an existing practice patient returns a possible
  * duplicate first; the admin can confirm it's a different person and add them anyway.
  */
@@ -71,6 +75,11 @@ export async function addPatient(input: AddPatientInput): Promise<AddPatientResu
   const parsed = patientInput.safeParse(input);
   if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Please check the details." };
   const v = parsed.data;
+  if (!v.clinicianId === !v.offerService) {
+    return { ok: false, message: "Pick the clinician who will see them, or offer them to your clinicians." };
+  }
+  // The type of care offered is always one of the services ordered.
+  if (v.offerService && !v.servicesOrdered.includes(v.offerService)) v.servicesOrdered.push(v.offerService);
 
   if (aideNeedsSkilledCare(v.servicesOrdered)) {
     return { ok: false, message: "An aide can only be ordered with skilled nursing, physical or occupational therapy." };
@@ -79,18 +88,29 @@ export async function addPatient(input: AddPatientInput): Promise<AddPatientResu
     return { ok: false, message: "Start of care can't be before the date of referral." };
   }
 
-  const [clinician] = await db
-    .select({ id: clinicians.id })
-    .from(clinicians)
-    .where(
-      and(
-        eq(clinicians.id, v.clinicianId),
-        eq(clinicians.practiceId, admin.practiceId),
-        eq(clinicians.role, "clinician"),
-        eq(clinicians.status, "active"),
-      ),
-    );
-  if (!clinician) return { ok: false, message: "Pick an active clinician from your practice." };
+  let clinicianId: string | null = null;
+  if (v.clinicianId) {
+    const [clinician] = await db
+      .select({ id: clinicians.id })
+      .from(clinicians)
+      .where(
+        and(
+          eq(clinicians.id, v.clinicianId),
+          eq(clinicians.practiceId, admin.practiceId),
+          eq(clinicians.role, "clinician"),
+          eq(clinicians.status, "active"),
+        ),
+      );
+    if (!clinician) return { ok: false, message: "Pick an active clinician from your practice." };
+    clinicianId = clinician.id;
+  }
+  const offerTeam = v.offerService ? await eligibleClinicians(admin.practiceId, v.offerService) : [];
+  if (v.offerService && !offerTeam.length) {
+    return {
+      ok: false,
+      message: `None of your active clinicians are ${OFFER_FOR[v.offerService].who} yet. Pick a clinician instead, or ask your team to set their role in Settings.`,
+    };
+  }
 
   if (v.diagnosisCode) {
     const [code] = await db.select({ code: diagnosisCodes.code }).from(diagnosisCodes).where(eq(diagnosisCodes.code, v.diagnosisCode));
@@ -102,12 +122,12 @@ export async function addPatient(input: AddPatientInput): Promise<AddPatientResu
     if (match) return { ok: false, duplicate: { name: match.name, dateOfBirth: match.dateOfBirth } };
   }
 
-  await db.transaction(async (tx) => {
+  const offerId = await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(patients)
       .values({
         practiceId: admin.practiceId,
-        clinicianId: clinician.id,
+        clinicianId,
         addedById: admin.id,
         fullName: v.fullName,
         dateOfBirth: v.dateOfBirth,
@@ -121,10 +141,23 @@ export async function addPatient(input: AddPatientInput): Promise<AddPatientResu
       })
       .returning({ id: patients.id });
     if (v.diagnosisCode) await tx.insert(patientDiagnoses).values({ patientId: created.id, code: v.diagnosisCode });
+    if (!v.offerService) return null;
+    const [offer] = await tx
+      .insert(patientOffers)
+      .values({
+        practiceId: admin.practiceId,
+        patientId: created.id,
+        service: v.offerService,
+        offeredById: admin.id,
+        offeredTo: offerTeam.length,
+      })
+      .returning({ id: patientOffers.id });
+    return offer.id;
   });
+  if (offerId && v.offerService) await announceOffer(admin.practiceId, offerId, v.offerService);
 
-  revalidatePath("/admin/patients");
-  return { ok: true, name: v.fullName };
+  revalidatePath("/", "layout");
+  return { ok: true, name: v.fullName, offeredTo: offerId ? offerTeam.length : undefined };
 }
 
 /** Moves a patient between Active and Discharged. */
@@ -149,7 +182,8 @@ export async function setPatientStatus(input: {
     )
     .returning({ id: patients.id });
   if (!updated.length) return { ok: false, message: "We couldn't find that patient. Please refresh the page." };
-  revalidatePath("/admin/patients");
+  if (input.status === "discharged") await closeOffer(input.patientId);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -222,6 +256,7 @@ export async function mergeIntoExisting(input: { patientId: string }): Promise<R
         invoice_email = coalesce(kept.invoice_email, dup.invoice_email),
         ordering_doctor = coalesce(kept.ordering_doctor, dup.ordering_doctor),
         services_ordered = (select array(select distinct unnest(kept.services_ordered || dup.services_ordered))),
+        clinician_id = coalesce(kept.clinician_id, dup.clinician_id),
         updated_at = now()
       from patients dup
       where kept.id = ${into} and dup.id = ${from}`);
@@ -231,6 +266,9 @@ export async function mergeIntoExisting(input: { patientId: string }): Promise<R
       .where(eq(patients.id, from));
   });
   await clearNotifications(admin.practiceId, "duplicate", from);
+  // A kept record that was still being offered now has the entry's clinician.
+  const [kept] = await db.select({ clinicianId: patients.clinicianId }).from(patients).where(eq(patients.id, into));
+  if (kept?.clinicianId) await closeOffer(into);
 
   revalidatePath("/", "layout");
   return { ok: true, name: pair.existing.name };
@@ -238,7 +276,8 @@ export async function mergeIntoExisting(input: { patientId: string }): Promise<R
 
 const careInput = z.object({
   patientId: z.uuid(),
-  clinicianId: z.string().min(1, "Pick the clinician who will see them."),
+  // Empty while the patient is offered and nobody has accepted; the clinician stays unset.
+  clinicianId: optional,
   insurer: optional,
   referralDate: isoDate.optional().or(z.literal("")).transform((v) => v || null),
   startOfCare: isoDate.optional().or(z.literal("")).transform((v) => v || null),
@@ -253,25 +292,29 @@ export async function updatePatientCare(input: z.input<typeof careInput>): Promi
   if (v.startOfCare && v.referralDate && v.startOfCare < v.referralDate) {
     return { ok: false, message: "Start of care can't be before the date of referral." };
   }
-  const [clinician] = await db
-    .select({ id: clinicians.id })
-    .from(clinicians)
-    .where(
-      and(
-        eq(clinicians.id, v.clinicianId),
-        eq(clinicians.practiceId, admin.practiceId),
-        eq(clinicians.role, "clinician"),
-        eq(clinicians.status, "active"),
-      ),
-    );
-  if (!clinician) return { ok: false, message: "Pick an active clinician from your practice." };
+  if (v.clinicianId) {
+    const [clinician] = await db
+      .select({ id: clinicians.id })
+      .from(clinicians)
+      .where(
+        and(
+          eq(clinicians.id, v.clinicianId),
+          eq(clinicians.practiceId, admin.practiceId),
+          eq(clinicians.role, "clinician"),
+          eq(clinicians.status, "active"),
+        ),
+      );
+    if (!clinician) return { ok: false, message: "Pick an active clinician from your practice." };
+  }
   const updated = await db
     .update(patients)
-    .set({ clinicianId: v.clinicianId, insurer: v.insurer, referralDate: v.referralDate, startOfCare: v.startOfCare, updatedAt: new Date() })
+    .set({ ...(v.clinicianId ? { clinicianId: v.clinicianId } : {}), insurer: v.insurer, referralDate: v.referralDate, startOfCare: v.startOfCare, updatedAt: new Date() })
     .where(and(eq(patients.id, v.patientId), eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")))
     .returning({ id: patients.id });
   if (!updated.length) return { ok: false, message: "We couldn't find that patient. Please refresh the page." };
-  revalidatePath("/admin/patients");
+  // Picking a clinician here ends an offer nobody has accepted yet.
+  if (v.clinicianId) await closeOffer(v.patientId);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
