@@ -1,10 +1,10 @@
 "use server";
 
-import { and, asc, eq, ilike, isNotNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, ilike, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, patientOffers, patients } from "@/db/schema";
+import { appointments, clinicians, diagnosisCodes, invoices, patientDiagnoses, patientOffers, patients, referrals } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { clearNotifications } from "@/lib/notifications";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
@@ -56,6 +56,8 @@ const patientInput = z.object({
   startOfCare: isoDate.optional().or(z.literal("")).transform((v) => v || null),
   // Set when the admin has seen the duplicate warning and said it's a different person.
   confirmedNotDuplicate: z.boolean().optional(),
+  // The accepted referral this patient comes from ("Add patient and offer" on Referral sources).
+  referralId: z.uuid().optional(),
 });
 
 export type AddPatientInput = z.input<typeof patientInput>;
@@ -141,6 +143,12 @@ export async function addPatient(input: AddPatientInput): Promise<AddPatientResu
       })
       .returning({ id: patients.id });
     if (v.diagnosisCode) await tx.insert(patientDiagnoses).values({ patientId: created.id, code: v.diagnosisCode });
+    if (v.referralId) {
+      await tx
+        .update(referrals)
+        .set({ patientId: created.id })
+        .where(and(eq(referrals.id, v.referralId), eq(referrals.practiceId, admin.practiceId), eq(referrals.status, "accepted"), isNull(referrals.patientId)));
+    }
     if (!v.offerService) return null;
     const [offer] = await tx
       .insert(patientOffers)

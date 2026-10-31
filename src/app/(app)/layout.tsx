@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     notesToDoCounts(id),
     unreadNotificationCount(id),
     contractCounts({ clinicianId: id }),
-    openOfferCount(practiceId, discipline),
+    openOfferCount(practiceId, id, discipline),
   ]);
 
   return (

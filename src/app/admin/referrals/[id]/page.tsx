@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { MessageComposer, MessageThread, ThreadUpkeep } from "@/components/portal-messages";
 import { ReferralCard } from "@/components/referral-list";
+import { ReferralPatientLink } from "../referral-patient-link";
 import { Badge } from "@/components/ui/badge";
 import { requireAdmin } from "@/lib/auth";
 import { portalAccount, portalConversation } from "@/lib/portal";
@@ -47,7 +48,17 @@ export default async function AdminReferralConversationPage({ params }: PageProp
             </p>
             <ul className="grid grid-cols-1 gap-3">
               {referrals.map((r) => (
-                <ReferralCard key={r.id} referral={r} actions={r.status === "pending" && <ReferralDecision referralId={r.id} patientName={r.patientName} />} />
+                <ReferralCard
+                  key={r.id}
+                  referral={r}
+                  actions={
+                    r.status === "pending" ? (
+                      <ReferralDecision referralId={r.id} patientName={r.patientName} />
+                    ) : r.status === "accepted" ? (
+                      <ReferralPatientLink referralId={r.id} patientId={r.patientId} />
+                    ) : null
+                  }
+                />
               ))}
             </ul>
           </>

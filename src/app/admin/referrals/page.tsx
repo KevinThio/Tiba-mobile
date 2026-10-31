@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/empty-state";
 import { ADMIN_SECTIONS } from "@/components/nav-items";
 import { PageHeader } from "@/components/page-header";
 import { ReferralCard, ReferralFilterTabs } from "@/components/referral-list";
+import { ReferralPatientLink } from "./referral-patient-link";
 import { RelativeDay } from "@/components/relative-day";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,13 @@ export default async function AdminReferralsPage({ searchParams }: PageProps<"/a
                 key={r.id}
                 referral={r}
                 showSource
-                actions={r.status === "pending" && <ReferralDecision referralId={r.id} patientName={r.patientName} />}
+                actions={
+                  r.status === "pending" ? (
+                    <ReferralDecision referralId={r.id} patientName={r.patientName} />
+                  ) : r.status === "accepted" ? (
+                    <ReferralPatientLink referralId={r.id} patientId={r.patientId} />
+                  ) : null
+                }
               />
             ))}
           </ul>

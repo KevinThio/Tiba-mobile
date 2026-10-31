@@ -19,7 +19,7 @@ export default async function PatientsPage() {
   const { discipline } = await clinicianSettings(clinician.id);
   const [rows, offers] = await Promise.all([
     practicePatients(clinician.practiceId, clinician.id),
-    openOfferCount(clinician.practiceId, discipline),
+    openOfferCount(clinician.practiceId, clinician.id, discipline),
   ]);
   const active = rows.filter((r) => r.status === "active").length;
 
@@ -41,8 +41,8 @@ export default async function PatientsPage() {
         >
           <UserRoundPlus className="size-5 shrink-0" aria-hidden />
           <span className="min-w-0 flex-1">
-            {offers === 1 ? "A new patient is" : `${offers} new patients are`} waiting for a clinician. The first to accept sees
-            them.
+            {offers === 1 ? "A new patient is" : `${offers} new patients are`} waiting for a clinician. Accept the ones you
+            can take.
           </span>
           <ChevronRight className="size-5 shrink-0" aria-hidden />
         </Link>

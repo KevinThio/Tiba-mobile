@@ -118,7 +118,7 @@ export const clinicians = pgTable("clinicians", {
   // One portal account per patient record.
   uniqueIndex("clinicians_patient_idx").on(t.patientId),
   check("clinicians_country_check", sql`${t.country} ~ '^[A-Z]{2}$'`),
-  check("clinicians_discipline_check", sql`${t.discipline} is null or ${t.discipline} in ('RN', 'LPN', 'PT', 'OT', 'SLP', 'HHA', 'MH')`),
+  check("clinicians_discipline_check", sql`${t.discipline} is null or ${t.discipline} in ('RN', 'LPN', 'PT', 'OT', 'SLP', 'HHA', 'MH', 'MSW')`),
   check("clinicians_status_check", sql`${t.status} in ('pending', 'active', 'deactivated')`),
   index("clinicians_practice_idx").on(t.practiceId),
   index("clinicians_location_idx").on(t.locationId),
@@ -593,6 +593,8 @@ export const referrals = pgTable(
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     decidedById: text("decided_by_id").references(() => clinicians.id, { onDelete: "set null" }),
     decisionNote: text("decision_note"),
+    // The patient record the admin added from an accepted referral ("Add patient and offer").
+    patientId: uuid("patient_id").references((): AnyPgColumn => patients.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -857,10 +859,11 @@ export const serviceAgreements = pgTable("service_agreements", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Offering a new patient (decided 31 Oct 2026; src/lib/patient-offers.ts): instead of picking a
+// Offering a patient (decided 31 Oct 2026; src/lib/patient-offers.ts): instead of picking a
 // clinician, the admin offers the patient to every active clinician whose discipline does that
-// type of care (`service`, a SERVICES value). Each is emailed; the first to accept becomes the
-// patient's clinician. "closed": the admin assigned someone else, or discharged the patient.
+// type of care (`service`, a SERVICES value). Each is emailed; those who can take the patient
+// accept (patient_offer_responses), and the admin assigns one, usually the first (taken_by_id,
+// status "taken"). "closed": the admin withdrew it, picked someone in Care, or discharged them.
 export const patientOffers = pgTable(
   "patient_offers",
   {
@@ -888,4 +891,21 @@ export const patientOffers = pgTable(
     check("patient_offers_closed_check", sql`(${t.status} = 'open') = (${t.closedAt} is null)`),
     check("patient_offers_taken_check", sql`(${t.status} = 'taken') = (${t.takenById} is not null)`),
   ],
+);
+
+// Clinicians who accepted an offered patient, in order (the admin assigns one of them).
+// A clinician can withdraw while the offer is open.
+export const patientOfferResponses = pgTable(
+  "patient_offer_responses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    offerId: uuid("offer_id")
+      .notNull()
+      .references(() => patientOffers.id, { onDelete: "cascade" }),
+    clinicianId: text("clinician_id")
+      .notNull()
+      .references(() => clinicians.id, { onDelete: "cascade" }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("patient_offer_responses_once").on(t.offerId, t.clinicianId), index("patient_offer_responses_offer_idx").on(t.offerId, t.acceptedAt)],
 );

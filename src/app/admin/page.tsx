@@ -56,14 +56,24 @@ export default async function AdminOverviewPage() {
   ]);
 
   const items: Attention[] = [];
-  if (offered.length > 0) {
+  for (const o of offered.filter((o) => o.accepted > 0)) {
     items.push({
-      href: offered.length === 1 ? `/admin/patients/${offered[0].patientId}` : "/admin/patients",
+      href: `/admin/patients/${o.patientId}#offer`,
+      icon: Megaphone,
+      title: `${o.accepted === 1 ? "1 clinician" : `${o.accepted} clinicians`} accepted ${o.name}`,
+      detail: "Assign one of them. The first to accept is suggested.",
+      badge: { label: "Assign", variant: "warning" },
+    });
+  }
+  const waitingForAnyone = offered.filter((o) => o.accepted === 0);
+  if (waitingForAnyone.length > 0) {
+    items.push({
+      href: waitingForAnyone.length === 1 ? `/admin/patients/${waitingForAnyone[0].patientId}#offer` : "/admin/patients",
       icon: Megaphone,
       title:
-        offered.length === 1
-          ? `${offered[0].name} is waiting for a clinician to accept`
-          : `${offered.length} new patients are waiting for a clinician to accept`,
+        waitingForAnyone.length === 1
+          ? `${waitingForAnyone[0].name} is waiting for a clinician to accept`
+          : `${waitingForAnyone.length} patients are waiting for a clinician to accept`,
       detail: "You offered them to your clinicians. You can still pick a clinician yourself.",
       badge: { label: "Offered", variant: "info" },
     });

@@ -24,6 +24,7 @@ type Row = {
   createdAt: string;
   clinicianName: string | null;
   offered: boolean;
+  accepted: number;
   possibleDuplicate: boolean;
   agreement: AgreementStatus;
 };
@@ -145,8 +146,12 @@ function PatientRow({ patient: p }: { patient: Row }) {
           </Link>
           {p.possibleDuplicate ? (
             <Badge variant="warning">Possible duplicate</Badge>
+          ) : p.accepted > 0 ? (
+            <Badge variant="warning">{p.accepted} accepted · assign</Badge>
+          ) : p.offered ? (
+            <Badge variant="info">Offered to clinicians</Badge>
           ) : !p.clinicianName ? (
-            <Badge variant={p.offered ? "info" : "warning"}>{p.offered ? "Offered to clinicians" : "No clinician"}</Badge>
+            <Badge variant="warning">No clinician</Badge>
           ) : (
             <Badge variant={AGREEMENT_BADGE[p.agreement].variant}>{AGREEMENT_BADGE[p.agreement].label}</Badge>
           )}

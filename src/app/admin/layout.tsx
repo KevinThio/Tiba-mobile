@@ -5,12 +5,13 @@ import { ADMIN_SECTIONS } from "@/components/nav-items";
 import { invoiceCounts, unbilledOverdue } from "@/lib/admin-billing";
 import { unreadNotificationCount, unreadOfTypes } from "@/lib/notifications";
 import { portalCounts } from "@/lib/portal";
+import { waitingOffers } from "@/lib/patient-offers";
 import { newReviewCount, pendingClinicianCount, possibleDuplicates, practiceLogoUrlFor } from "@/lib/practice";
 
 /** Admin app (spec v2 section 5). Clinicians are sent back to their app by requireAdmin(). */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { id, name, practiceName, practiceId } = await requireAdmin();
-  const [logoUrl, pending, newReviews, duplicates, unread, invoiceTotals, unbilled, contractNews, portal, referral, clockFlags] = await Promise.all([
+  const [logoUrl, pending, newReviews, duplicates, unread, invoiceTotals, unbilled, contractNews, portal, referral, clockFlags, offered] = await Promise.all([
     practiceLogoUrlFor(practiceId),
     pendingClinicianCount(practiceId),
     newReviewCount(practiceId),
@@ -22,6 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     portalCounts(practiceId),
     portalCounts(practiceId, "referrer"),
     unreadOfTypes(id, ["clock_flag"]),
+    waitingOffers(practiceId),
   ]);
 
   return (
@@ -32,7 +34,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       badges={{
         [ADMIN_SECTIONS.clinicians.href]: pending,
         [ADMIN_SECTIONS.reviews.href]: newReviews,
-        [ADMIN_SECTIONS.patients.href]: duplicates.length,
+        [ADMIN_SECTIONS.patients.href]: duplicates.length + offered.filter((o) => o.accepted > 0).length,
         [ADMIN_SECTIONS.notifications.href]: unread,
         [ADMIN_SECTIONS.invoices.href]: invoiceTotals.unseen,
         [ADMIN_SECTIONS.billing.href]: unbilled.count,

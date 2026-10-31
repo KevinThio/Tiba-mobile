@@ -29,6 +29,8 @@ export type Referral = {
   decidedAt: Date | null;
   decidedByName: string | null;
   decisionNote: string | null;
+  // The patient record the admin added from it (admin screens only).
+  patientId: string | null;
   attachments: PortalAttachment[];
 };
 
@@ -53,6 +55,7 @@ export async function listReferrals(practiceId: string, filter: { referrerId?: s
       decidedAt: referrals.decidedAt,
       decidedByName: decider.name,
       decisionNote: referrals.decisionNote,
+      patientId: referrals.patientId,
     })
     .from(referrals)
     .innerJoin(clinicians, eq(clinicians.id, referrals.referrerId))

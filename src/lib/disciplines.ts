@@ -11,6 +11,7 @@ export const DISCIPLINES = [
   { value: "SLP", label: "Speech-language pathologist (SLP)" },
   { value: "HHA", label: "Home health aide / CNA" },
   { value: "MH", label: "Mental health therapist" },
+  { value: "MSW", label: "Social worker (MSW)" },
 ] as const;
 
 export type Discipline = (typeof DISCIPLINES)[number]["value"];
@@ -30,6 +31,8 @@ const CARES: Record<Discipline, Care[]> = {
   SLP: ["st"],
   HHA: ["hha"],
   MH: THERAPY_CARES,
+  // Social workers document assessments, counselling and follow-ups with the therapy note types.
+  MSW: THERAPY_CARES,
 };
 
 /** Whether a clinician of this discipline writes notes for this type of care. No discipline set yet: anything. */
@@ -54,6 +57,7 @@ export function caresDescription(discipline: Discipline) {
     SLP: "speech therapy notes",
     HHA: "aide visit notes",
     MH: "therapy notes",
+    MSW: "social work notes (the therapy note types)",
   };
   return words[discipline];
 }

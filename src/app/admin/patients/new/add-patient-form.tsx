@@ -19,12 +19,17 @@ import { addPatient, searchDiagnosisCodes } from "../actions";
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
+export type PatientPrefill = { referralId: string; fullName: string; dateOfBirth: string; insurer: string; referralDate: string; source: string };
+
 export function AddPatientForm({
   clinicians,
   insurers,
+  prefill,
 }: {
   clinicians: { id: string; name: string; discipline: string | null }[];
   insurers: string[];
+  /** From an accepted referral: the details it carried, offered to clinicians by default. */
+  prefill?: PatientPrefill;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -34,7 +39,7 @@ export function AddPatientForm({
   const [duplicate, setDuplicate] = useState<{ name: string; dateOfBirth: string } | null>(null);
   const [pending, setPending] = useState(false);
   // Pick a clinician, or offer the patient to every clinician who does one type of care.
-  const [who, setWho] = useState<"pick" | "offer">("pick");
+  const [who, setWho] = useState<"pick" | "offer">(prefill ? "offer" : "pick");
   const [offerService, setOfferService] = useState<Service | "">("");
   const today = new Date().toISOString().slice(0, 10);
 
@@ -77,6 +82,7 @@ export function AddPatientForm({
       referralDate: get("referralDate"),
       startOfCare: get("startOfCare"),
       confirmedNotDuplicate,
+      referralId: prefill?.referralId,
     }).catch(() => null);
     setPending(false);
     if (!result) return setError("We couldn't add this patient just now. Check your connection and try again.");
@@ -86,7 +92,7 @@ export function AddPatientForm({
     }
     toast.success(
       result.offeredTo
-        ? `${result.name} is offered to ${result.offeredTo} ${result.offeredTo === 1 ? "clinician" : "clinicians"}. We'll tell you when one accepts.`
+        ? `${result.name} is offered to ${result.offeredTo} ${result.offeredTo === 1 ? "clinician" : "clinicians"}. We'll tell you who accepts.`
         : `${result.name} is added to your practice.`,
     );
     router.push("/admin/patients");
@@ -110,9 +116,10 @@ export function AddPatientForm({
     >
       <section className="grid gap-5 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
         <h2 className="text-h3">Patient</h2>
-        <FormField label="Full name" name="fullName" autoComplete="off" required />
+        {prefill && <p className="text-small text-muted-foreground">From {prefill.source}&apos;s referral. Check the details before you add them.</p>}
+        <FormField label="Full name" name="fullName" autoComplete="off" required defaultValue={prefill?.fullName} />
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <FormField label="Date of birth" name="dateOfBirth" type="date" max={today} required />
+          <FormField label="Date of birth" name="dateOfBirth" type="date" max={today} required defaultValue={prefill?.dateOfBirth} />
           <FormField label="Phone (optional)" name="phone" type="tel" autoComplete="off" />
         </div>
         <FormField label="Email (optional)" name="email" type="email" autoComplete="off" hint="Used to send their invoices." />
@@ -161,15 +168,15 @@ export function AddPatientForm({
               </NativeSelect>
               <p className="text-sm text-muted-foreground">
                 {offerService
-                  ? `We'll email the ${offerCount} ${OFFER_FOR[offerService].who} in your practice. The first to accept sees ${offerCount === 1 ? "the patient" : "them"}, and we'll tell you who.`
-                  : "Every clinician who does this type of care is emailed. The first to accept becomes the patient's clinician. Clinicians need their role set in Settings to be offered patients."}
+                  ? `We'll email the ${offerCount} ${OFFER_FOR[offerService].who} in your practice. You'll see who accepts, in order, and assign one on the patient's page.`
+                  : "Every clinician who does this type of care is emailed. Those who can take the patient accept, and you assign one, usually the first. Clinicians need their role set in Settings to be offered patients."}
               </p>
             </div>
           )}
         </fieldset>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <SelectField label="Insurer" name="insurer" defaultValue={insurers[0]}>
-            {insurers.map((i) => (
+          <SelectField label="Insurer" name="insurer" defaultValue={prefill?.insurer ?? insurers[0]}>
+            {(prefill && !insurers.includes(prefill.insurer) ? [prefill.insurer, ...insurers] : insurers).map((i) => (
               <NativeSelectOption key={i} value={i}>
                 {i}
               </NativeSelectOption>
@@ -213,7 +220,7 @@ export function AddPatientForm({
 
         <FormField label="Ordering doctor (optional)" name="orderingDoctor" autoComplete="off" />
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <FormField label="Date of referral" name="referralDate" type="date" max={today} required />
+          <FormField label="Date of referral" name="referralDate" type="date" max={today} required defaultValue={prefill?.referralDate} />
           <FormField label="Start of care (optional)" name="startOfCare" type="date" />
         </div>
       </section>

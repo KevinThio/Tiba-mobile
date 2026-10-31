@@ -39,7 +39,7 @@ export const OFFER_FOR: Record<Service, { disciplines: string[]; care: string; w
   OT: { disciplines: ["OT"], care: "occupational therapy", who: "occupational therapists" },
   ST: { disciplines: ["SLP"], care: "speech therapy", who: "speech-language pathologists" },
   HHA: { disciplines: ["HHA"], care: "a home health aide", who: "home health aides" },
-  MSW: { disciplines: ["MH"], care: "social work", who: "mental health therapists" },
+  MSW: { disciplines: ["MSW"], care: "social work", who: "social workers" },
 };
 
 export const isService = (value: unknown): value is Service =>

@@ -1,0 +1,2 @@
+ALTER TABLE "referrals" ADD COLUMN "patient_id" uuid;--> statement-breakpoint
+ALTER TABLE "referrals" ADD CONSTRAINT "referrals_patient_id_patients_id_fk" FOREIGN KEY ("patient_id") REFERENCES "public"."patients"("id") ON DELETE set null ON UPDATE no action;

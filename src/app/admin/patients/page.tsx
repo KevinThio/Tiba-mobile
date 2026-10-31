@@ -24,6 +24,8 @@ export default async function AdminPatientsPage() {
       createdAt: patients.createdAt,
       clinicianName: clinicians.name,
       offered: sql<boolean>`exists (select 1 from patient_offers o where o.patient_id = ${patients.id} and o.status = 'open')`,
+      accepted: sql<number>`(select count(*)::int from patient_offers o join patient_offer_responses r on r.offer_id = o.id
+        where o.patient_id = ${patients.id} and o.status = 'open')`,
       possibleDuplicate: isNotNull(patients.duplicateFlaggedAt),
       agreementPatient: serviceAgreements.patientSignature,
       agreementAdmin: serviceAgreements.adminSignature,

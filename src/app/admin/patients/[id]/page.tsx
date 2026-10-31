@@ -1,5 +1,5 @@
 import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
-import { Megaphone, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
@@ -16,10 +16,11 @@ import { agreementStatus, isComplete } from "@/lib/agreements";
 import { listFiles, toSummary } from "@/lib/files";
 import { requireAdmin } from "@/lib/auth";
 import { ageFrom } from "@/lib/format";
-import { latestOffer } from "@/lib/patient-offers";
-import { insurersFor, OFFER_FOR, SERVICES, type Service } from "@/lib/patient-options";
+import { latestOffer, offerCounts, offerResponses } from "@/lib/patient-offers";
+import { insurersFor, SERVICES, type Service } from "@/lib/patient-options";
 import { practiceBilling } from "@/lib/practice";
 import { searchDiagnosisCodes, updatePatientDetails } from "../actions";
+import { OfferPanel } from "./offer-panel";
 import { CareForm, StatusButton } from "./patient-forms";
 
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -59,7 +60,7 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
     .where(and(eq(patients.id, id), eq(patients.practiceId, admin.practiceId), ne(patients.status, "merged")));
   if (!patient) notFound();
 
-  const [diagnoses, team, billing, agreementRow, documents, offer] = await Promise.all([
+  const [diagnoses, team, billing, agreementRow, documents, offer, counts] = await Promise.all([
     db
       .select({ code: diagnosisCodes.code, description: diagnosisCodes.description })
       .from(patientDiagnoses)
@@ -71,8 +72,10 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
     db.select().from(serviceAgreements).where(eq(serviceAgreements.patientId, id)),
     listFiles(admin.practiceId, "patient", id),
     latestOffer(id),
+    offerCounts(admin.practiceId),
   ]);
-  const offerWords = offer ? OFFER_FOR[offer.service as Service] : null;
+  const open = offer?.status === "open" ? offer : null;
+  const responses = open ? await offerResponses(open.id) : [];
   const first = patient.fullName.split(" ")[0];
   const signedRow = agreementRow[0] ?? null;
   const agreement = { status: agreementStatus(signedRow) };
@@ -163,21 +166,9 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
 
         <section className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
           <h2 className="text-h3">Care</h2>
-          {offer?.status === "open" && offerWords && (
-            <div role="status" className="flex gap-3 rounded-md bg-info px-4 py-3.5 text-info-foreground">
-              <Megaphone className="mt-0.5 size-5 shrink-0" aria-hidden />
-              <p>
-                <span className="font-semibold">
-                  Offered to {offer.offeredTo} {offer.offeredTo === 1 ? "clinician" : offerWords.who} on {DATE.format(offer.offeredAt)}.
-                </span>{" "}
-                The first to accept sees {first}, and we&apos;ll tell you who. To decide yourself, pick a clinician below.
-              </p>
-            </div>
-          )}
-          {offer?.status === "taken" && offerWords && patient.clinicianName === offer.takenBy && (
+          {open && (
             <p className="text-small text-muted-foreground">
-              {offer.takenBy} accepted {first} on {DATE.format(offer.closedAt!)}, first of the {offer.offeredTo}{" "}
-              {offer.offeredTo === 1 ? "clinician" : offerWords.who} offered.
+              {first} is offered to your clinicians. Picking a clinician here ends the offer.
             </p>
           )}
           <CareForm
@@ -190,6 +181,33 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
               referralDate: patient.referralDate ?? "",
               startOfCare: patient.startOfCare ?? "",
             }}
+          />
+        </section>
+
+        <section id="offer" className="grid gap-4 rounded-lg border border-border-subtle bg-card p-5 shadow-sm sm:p-6">
+          <h2 className="text-h3">Offer to clinicians</h2>
+          <OfferPanel
+            patientId={patient.id}
+            first={first}
+            active={patient.status === "active"}
+            counts={counts}
+            lastAssigned={offer?.status === "taken" ? offer.takenBy : null}
+            open={
+              open
+                ? {
+                    id: open.id,
+                    service: open.service as Service,
+                    offeredTo: open.offeredTo,
+                    offeredAt: open.offeredAt.toISOString(),
+                    responses: responses.map((r) => ({
+                      clinicianId: r.clinicianId,
+                      name: r.name,
+                      active: r.status === "active",
+                      acceptedAt: r.acceptedAt.toISOString(),
+                    })),
+                  }
+                : null
+            }
           />
         </section>
 

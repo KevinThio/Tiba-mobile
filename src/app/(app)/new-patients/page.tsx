@@ -17,19 +17,19 @@ const fmt = (d: string) => DATE.format(new Date(`${d}T00:00:00Z`));
 
 /**
  * New patients (decided 31 Oct 2026): patients the admin offered for this clinician's discipline.
- * The first clinician to accept becomes the patient's clinician.
+ * Clinicians accept the ones they can take, and the admin assigns one of them.
  */
 export default async function NewPatientsPage() {
   const clinician = await requireClinician();
   const { discipline } = await clinicianSettings(clinician.id);
-  const offers = await openOffersFor(clinician.practiceId, discipline);
+  const offers = await openOffersFor(clinician.practiceId, clinician.id, discipline);
 
   return (
     <div className="grid grid-cols-1 gap-6">
       <PageHeader
-        overline="First to accept sees them"
+        overline="Offered by your practice"
         title="New patients"
-        description="Patients your practice is offering to clinicians of your discipline. Accept one and they become your patient."
+        description="Patients your practice is offering to clinicians of your discipline. Accept the ones you can take; your admin assigns each patient, usually to the first to accept."
       />
 
       {!discipline ? (
@@ -61,8 +61,13 @@ export default async function NewPatientsPage() {
                       Age {ageFrom(o.dateOfBirth)} · Needs {OFFER_FOR[o.service as Service].care} · Offered{" "}
                       <RelativeDay iso={o.offeredAt.toISOString()} withTime />
                     </p>
+                    {o.acceptedAt && (
+                      <Badge variant="success" className="mt-2">
+                        You accepted · waiting for your admin
+                      </Badge>
+                    )}
                   </div>
-                  <AcceptButton offerId={o.id} name={o.fullName} />
+                  <AcceptButton offerId={o.id} name={o.fullName} accepted={Boolean(o.acceptedAt)} />
                 </div>
                 <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Detail label="Home address">{o.address ?? "Not added yet"}</Detail>
