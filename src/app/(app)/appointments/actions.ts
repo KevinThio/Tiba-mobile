@@ -148,6 +148,8 @@ const bookingSchema = z.object({
     .max(MAX_VISIT_MINUTES, "A visit can be up to 24 hours long."),
   typeOfCare: z.string().trim().min(1, "Add the type of care, for example “Individual session”.").max(100),
   fee: z.string().trim(),
+  // Virtual (telehealth) visits are clocked without checking the patient's home.
+  virtual: z.boolean().default(false),
   patient: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("existing"), id: z.uuid("Choose a patient from the list.") }),
     z.object({
@@ -171,7 +173,7 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Please check the details and try again." };
   }
-  const { startsAt, durationMinutes, typeOfCare, fee, patient } = parsed.data;
+  const { startsAt, durationMinutes, typeOfCare, fee, virtual, patient } = parsed.data;
   const { currency } = await practiceBilling(clinician.practiceId);
   const feeMinor = parseMoneyToMinor(fee, currency);
   if (feeMinor === null) {
@@ -219,6 +221,7 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
         typeOfCare,
         feeMinor,
         currency,
+        virtual,
       })
       .returning();
 
@@ -241,41 +244,4 @@ export async function createAppointment(input: BookingInput): Promise<BookingRes
       },
     };
   });
-}
-
-const visitTimesSchema = z.object({
-  appointmentId: z.uuid(),
-  // ISO instant to set, null to clear, or left out to keep.
-  timeIn: z.iso.datetime({ offset: true }).nullable().optional(),
-  timeOut: z.iso.datetime({ offset: true }).nullable().optional(),
-});
-
-export type VisitTimesResult = { ok: true; timeIn: string | null; timeOut: string | null } | { ok: false; message: string };
-
-/** Record when the visit actually started (time in) and ended (time out). Locked once the note is signed. */
-export async function setVisitTimes(input: z.input<typeof visitTimesSchema>): Promise<VisitTimesResult> {
-  const clinician = await requireClinician();
-  const parsed = visitTimesSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, message: "Please check the times and try again." };
-  const { appointmentId, timeIn, timeOut } = parsed.data;
-
-  const [current] = await db
-    .select({ timeIn: appointments.timeIn, timeOut: appointments.timeOut, signed: isNotNull(notes.signedAt) })
-    .from(appointments)
-    .leftJoin(notes, eq(notes.appointmentId, appointments.id))
-    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicianId, clinician.id)));
-  if (!current) return { ok: false, message: "We couldn't find that visit." };
-  if (current.signed) return { ok: false, message: "This note is signed, so the visit times are locked." };
-
-  const nextIn = timeIn === undefined ? current.timeIn : timeIn ? new Date(timeIn) : null;
-  const nextOut = timeOut === undefined ? current.timeOut : timeOut ? new Date(timeOut) : null;
-  if (nextIn && nextOut && nextOut <= nextIn) {
-    return { ok: false, message: "Time out needs to be after time in." };
-  }
-
-  await db
-    .update(appointments)
-    .set({ timeIn: nextIn, timeOut: nextOut, updatedAt: new Date() })
-    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicianId, clinician.id)));
-  return { ok: true, timeIn: nextIn?.toISOString() ?? null, timeOut: nextOut?.toISOString() ?? null };
 }

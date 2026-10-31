@@ -4,7 +4,7 @@ import { and, eq, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db";
-import { appointments, invoiceItems, notes } from "@/db/schema";
+import { appointments, invoiceItems, notes, visitClocks } from "@/db/schema";
 import { requireClinician } from "@/lib/auth";
 
 type Result = { ok: true } | { ok: false; message: string };
@@ -27,6 +27,7 @@ export async function markVisitMissed(input: { appointmentId: string; reason: st
       missedAt: appointments.missedAt,
       noteId: notes.id,
       invoiced: sql<boolean>`exists (select 1 from ${invoiceItems} where ${invoiceItems.appointmentId} = ${appointments.id})`,
+      clocked: sql<boolean>`exists (select 1 from ${visitClocks} where ${visitClocks.appointmentId} = ${appointments.id})`,
     })
     .from(appointments)
     .leftJoin(notes, eq(notes.appointmentId, appointments.id))
@@ -36,6 +37,7 @@ export async function markVisitMissed(input: { appointmentId: string; reason: st
   if (visit.noteId || visit.invoiced) {
     return { ok: false, message: "This visit already has a note, so it can't be marked missed." };
   }
+  if (visit.clocked) return { ok: false, message: "You clocked in to this visit, so it can't be marked missed." };
   if (visit.startsAt > new Date()) {
     return { ok: false, message: "This visit hasn't started yet. If it won't happen, mark it missed once it's due." };
   }

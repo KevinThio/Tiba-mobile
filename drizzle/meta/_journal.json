@@ -246,6 +246,20 @@
       "when": 1793180329058,
       "tag": "0034_referrals",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793434741617,
+      "tag": "0035_visit_clock",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793434747573,
+      "tag": "0036_lock_visit_clocks",
+      "breakpoints": true
     }
   ]
 }

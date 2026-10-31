@@ -12,6 +12,7 @@ import { requireClinician } from "@/lib/auth";
 import { goalsFromEvaluation, hasSignedPlan } from "@/lib/note-context";
 import { summarise } from "@/lib/note-summary";
 import { CARE_LABEL, getTemplate, isDiscipline, KIND_LABEL, missingFields, type Care, type NoteKind } from "@/lib/note-templates";
+import { clockProblem } from "@/lib/visit-clock";
 import { SignForm } from "./sign-form";
 
 /**
@@ -56,9 +57,12 @@ export default async function SignNotePage({ params }: PageProps<"/appointments/
   const evaluation = care ? await goalsFromEvaluation(visit.patientId, care, clinician.practiceId) : null;
   const goals = evaluation?.goals ?? [];
   const template = care && kind ? getTemplate(kind, care) : null;
+  const unclocked = visit.noteId ? await clockProblem(id, visit.version ?? 1) : null;
   const blocked =
     !visit.noteId || !template || !visit.updatedAt
       ? "Start the note first. Fill in the sections, then come back to sign."
+      : unclocked
+        ? unclocked
       : care === "hha" && !(await hasSignedPlan(visit.patientId, clinician.practiceId))
         ? "Aide visit notes stay locked until the aide service plan is signed."
         : missingFields(template, visit.fields ?? {}, goals.length).length

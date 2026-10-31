@@ -12,6 +12,7 @@ import { writeNote } from "@/lib/note-summary";
 import { getTemplate, missingFields, type Care, type NoteKind } from "@/lib/note-templates";
 import { isValidTimeZone } from "@/lib/reminders";
 import { isSignatureImage } from "@/lib/signature";
+import { clockProblem } from "@/lib/visit-clock";
 
 const input = z.object({
   appointmentId: z.uuid(),
@@ -56,6 +57,7 @@ export async function signNote(raw: z.input<typeof input>): Promise<SignResult> 
       fields: notes.fields,
       updatedAt: notes.updatedAt,
       signedAt: notes.signedAt,
+      version: notes.version,
       savedTimeZone: clinicians.timeZone,
     })
     .from(appointments)
@@ -71,6 +73,9 @@ export async function signNote(raw: z.input<typeof input>): Promise<SignResult> 
   if (visit.updatedAt.toISOString() !== new Date(draftSavedAt).toISOString()) {
     return { ok: false, message: "The note changed since you opened this page. Check the summary again, then sign." };
   }
+
+  const unclocked = await clockProblem(appointmentId, visit.version ?? 1);
+  if (unclocked) return { ok: false, message: unclocked };
 
   const care = visit.care as Care;
   const kind = visit.kind as NoteKind;

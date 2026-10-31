@@ -20,6 +20,7 @@ export type EditablePatient = {
   fullName: string;
   dateOfBirth: string;
   phone: string | null;
+  address: string | null;
   email: string | null;
   orderingDoctor: string | null;
   servicesOrdered: string[];
@@ -28,7 +29,8 @@ export type EditablePatient = {
 
 /**
  * Edit details on a patient's page (admin and clinician): a button that opens a form to correct
- * the name, date of birth, contact, ordering doctor, services ordered and diagnosis codes.
+ * the name, date of birth, contact, home address, ordering doctor, services ordered and
+ * diagnosis codes.
  * `save` and `search` are each app's Server Actions.
  */
 export function EditPatientDetails({
@@ -59,6 +61,21 @@ export function EditPatientDetails({
   );
 }
 
+/** The patient's home address, and a warning when it couldn't be found on the map. */
+export function HomeAddress({ address, onMap }: { address: string; onMap: boolean }) {
+  return (
+    <>
+      {address}
+      {!onMap && (
+        <span className="mt-1 flex gap-1.5 text-small text-warning-foreground">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+          Not found on the map, so clock-ins can&apos;t be checked. Check the address.
+        </span>
+      )}
+    </>
+  );
+}
+
 function DetailsForm({
   patient,
   save,
@@ -74,6 +91,7 @@ function DetailsForm({
   const [fullName, setFullName] = useState(patient.fullName);
   const [dateOfBirth, setDateOfBirth] = useState(patient.dateOfBirth);
   const [phone, setPhone] = useState(patient.phone ?? "");
+  const [address, setAddress] = useState(patient.address ?? "");
   const [email, setEmail] = useState(patient.email ?? "");
   const [orderingDoctor, setOrderingDoctor] = useState(patient.orderingDoctor ?? "");
   const [services, setServices] = useState<Service[]>(patient.servicesOrdered.filter((s): s is Service => SERVICES.some((x) => x.value === s)));
@@ -94,6 +112,7 @@ function DetailsForm({
       fullName,
       dateOfBirth,
       phone,
+      address,
       email,
       orderingDoctor,
       servicesOrdered: services,
@@ -106,7 +125,9 @@ function DetailsForm({
       if ("duplicate" in result) return setDuplicate(result.duplicate);
       return setError(result.message);
     }
-    toast.success(`${result.name}'s details are saved.`);
+    if (result.addressNotFound) {
+      toast.warning(`Saved. We couldn't find ${result.name}'s address on the map, so clock-ins there can't be checked. Check the address.`);
+    } else toast.success(`${result.name}'s details are saved.`);
     onDone();
     router.refresh();
   }
@@ -139,6 +160,14 @@ function DetailsForm({
         />
         <FormField label="Phone (optional)" name="phone" type="tel" autoComplete="off" value={phone} onChange={(e) => setPhone(e.target.value)} />
       </div>
+      <FormField
+        label="Home address"
+        name="address"
+        autoComplete="off"
+        hint="Street, town and postcode. Clinicians clock in here on in-person visits."
+        value={address}
+        onChange={(e) => setAddress(e.target.value)}
+      />
       <FormField
         label="Email (optional)"
         name="email"

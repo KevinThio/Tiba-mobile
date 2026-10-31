@@ -1,4 +1,4 @@
-import { ChevronRight, CircleAlert, FilePen, FileSignature, FileUp, Landmark, MessagesSquare, ReceiptText, Star, UserPlus, UserRoundCheck, UserX, UsersRound, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, FilePen, FileSignature, FileUp, Landmark, MapPinX, MessagesSquare, ReceiptText, Star, UserPlus, UserRoundCheck, UserX, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -46,13 +46,23 @@ export default async function AdminOverviewPage() {
     oldestNewReview(practiceId),
     visitsAroundToday(practiceId),
   ]);
-  const [contractNews, portal, referral] = await Promise.all([
+  const [contractNews, portal, referral, clockFlags] = await Promise.all([
     unreadOfTypes(id, ["contract_message", "contract_signed"]),
     portalCounts(practiceId),
     portalCounts(practiceId, "referrer"),
+    unreadOfTypes(id, ["clock_flag"]),
   ]);
 
   const items: Attention[] = [];
+  if (clockFlags.length > 0) {
+    items.push({
+      href: "/admin/visits",
+      icon: MapPinX,
+      title: clockFlags.length === 1 ? clockFlags[0].title : `${clockFlags.length >= 10 ? "10+" : clockFlags.length} clock-ins and clock-outs need a check`,
+      detail: "Away from the patient's home, or without a location.",
+      badge: { label: "Check", variant: "warning" },
+    });
+  }
   if (waiting > 0) {
     items.push({
       href: "/admin/clinicians",

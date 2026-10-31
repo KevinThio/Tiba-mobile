@@ -1,6 +1,7 @@
 import {
   Bell,
   CalendarDays,
+  Clock,
   ChartColumn,
   CircleUserRound,
   FileCheck,
@@ -74,6 +75,7 @@ export const ADMIN_SECTIONS = {
   messages: { href: "/admin/messages", label: "Patient messages", icon: MessagesSquare, overline: "Patient portal", description: "Messages from your patients, and patients asking to join the portal." },
   referrals: { href: "/admin/referrals", label: "Referral sources", icon: FileUp, overline: "Referral portal", description: "Referrals, messages and documents from hospitals, doctors and agencies, and new referral sources asking to join." },
   appointments: { href: "/admin/appointments", label: "Appointments", icon: CalendarDays, overline: "Upcoming", description: "Upcoming visits for every clinician, grouped by day." },
+  visits: { href: "/admin/visits", label: "Clock in and out", icon: Clock, overline: "All clinicians", description: "Where and when your clinicians clocked in and out of visits." },
   notes: { href: "/admin/notes", label: "Completed notes", icon: FileCheck, overline: "All clinicians", description: "Every signed note, newest first. Drafts stay private to each clinician until signed." },
   invoices: { href: "/admin/invoices", label: "Invoices", icon: ReceiptText, overline: "Sent by your clinicians", description: "Mark invoices paid, or flag an issue for the clinician to fix." },
   billing: { href: "/admin/billing", label: "Insurance billing", icon: Landmark, overline: "Notes billed to insurance", description: "Signed notes waiting to be billed, oldest first. Red means more than 30 days." },
@@ -89,7 +91,7 @@ const A = ADMIN_SECTIONS;
 export const ADMIN_NAV_GROUPS: NavGroup[] = [
   { items: [A.overview, A.notifications, A.performance] },
   { label: "People", items: [A.clinicians, A.patients, A.messages, A.referrals] },
-  { label: "Work", items: [A.appointments, A.notes, A.invoices, A.billing] },
+  { label: "Work", items: [A.appointments, A.visits, A.notes, A.invoices, A.billing] },
   { label: "Practice", items: [A.contracts, A.locations, A.reviews, A.settings] },
 ];
 
@@ -102,7 +104,7 @@ export const ADMIN_TAB_ITEMS: TabItem[] = [
     href: "/admin/more",
     label: "More",
     icon: Menu,
-    also: [A.notifications, A.messages, A.referrals, A.contracts, A.performance, A.invoices, A.clinicians, A.appointments, A.notes, A.locations, A.reviews, A.settings].map((s) => s.href),
+    also: [A.notifications, A.messages, A.referrals, A.contracts, A.performance, A.invoices, A.clinicians, A.appointments, A.visits, A.notes, A.locations, A.reviews, A.settings].map((s) => s.href),
   },
 ];
 
@@ -116,6 +118,7 @@ export const ADMIN_MORE_ITEMS: (NavItem & { meta: string })[] = [
   { ...A.invoices, meta: "Mark paid or flag issues" },
   { ...A.clinicians, meta: "Accounts, documents, emergency contacts" },
   { ...A.appointments, meta: "Upcoming visits across the practice" },
+  { ...A.visits, meta: "Where and when visits were clocked" },
   { ...A.notes, meta: "Signed notes from your clinicians" },
   { ...A.locations, meta: "Addresses, services and files" },
   { ...A.reviews, meta: "Only you can see these" },

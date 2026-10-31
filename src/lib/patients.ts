@@ -39,6 +39,8 @@ export async function patientRecord(patientId: string, practiceId: string, clini
       fullName: patients.fullName,
       dateOfBirth: patients.dateOfBirth,
       phone: patients.phone,
+      address: patients.address,
+      onMap: sql<boolean>`${patients.homeLat} is not null`,
       email: patients.invoiceEmail,
       status: patients.status,
       mergedIntoId: patients.mergedIntoId,

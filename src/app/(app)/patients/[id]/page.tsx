@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { DownloadPdfButton } from "@/components/download-pdf-button";
-import { EditPatientDetails } from "@/components/edit-patient-details";
+import { EditPatientDetails, HomeAddress } from "@/components/edit-patient-details";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { RelativeDay } from "@/components/relative-day";
@@ -125,6 +125,7 @@ export default async function PatientRecordPage({ params }: PageProps<"/patients
                 fullName: patient.fullName,
                 dateOfBirth: patient.dateOfBirth,
                 phone: patient.phone,
+                address: patient.address,
                 email: patient.email,
                 orderingDoctor: patient.orderingDoctor,
                 servicesOrdered: patient.servicesOrdered,
@@ -138,6 +139,9 @@ export default async function PatientRecordPage({ params }: PageProps<"/patients
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Detail label="Date of birth">{DATE.format(new Date(patient.dateOfBirth))}</Detail>
             <Detail label="Phone">{patient.phone ?? <Missing />}</Detail>
+            <Detail label="Home address">
+              {patient.address ? <HomeAddress address={patient.address} onMap={Boolean(patient.onMap)} /> : <Missing />}
+            </Detail>
             <Detail label="Email">{patient.email ?? <Missing />}</Detail>
             <Detail label="Ordering doctor">{patient.orderingDoctor ?? <Missing />}</Detail>
             <Detail label="Assigned clinician">

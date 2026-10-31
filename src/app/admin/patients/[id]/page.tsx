@@ -1,9 +1,9 @@
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { EditPatientDetails } from "@/components/edit-patient-details";
+import { EditPatientDetails, HomeAddress } from "@/components/edit-patient-details";
 import { FileList } from "@/components/file-list";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,8 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
       fullName: patients.fullName,
       dateOfBirth: patients.dateOfBirth,
       phone: patients.phone,
+      address: patients.address,
+      onMap: isNotNull(patients.homeLat),
       email: patients.invoiceEmail,
       insurer: patients.insurer,
       servicesOrdered: patients.servicesOrdered,
@@ -115,6 +117,7 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
                 fullName: patient.fullName,
                 dateOfBirth: patient.dateOfBirth,
                 phone: patient.phone,
+                address: patient.address,
                 email: patient.email,
                 orderingDoctor: patient.orderingDoctor,
                 servicesOrdered: patient.servicesOrdered,
@@ -129,6 +132,9 @@ export default async function AdminPatientPage({ params }: PageProps<"/admin/pat
               {DATE.format(new Date(`${patient.dateOfBirth}T00:00:00Z`))} · {ageFrom(patient.dateOfBirth)}
             </Detail>
             <Detail label="Phone">{patient.phone ?? <Missing />}</Detail>
+            <Detail label="Home address">
+              {patient.address ? <HomeAddress address={patient.address} onMap={Boolean(patient.onMap)} /> : <Missing />}
+            </Detail>
             <Detail label="Email">{patient.email ?? <Missing />}</Detail>
             <Detail label="Insurer">{patient.insurer ?? <Missing />}</Detail>
             <Detail label="Ordering doctor">{patient.orderingDoctor ?? <Missing />}</Detail>

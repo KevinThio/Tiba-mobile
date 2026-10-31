@@ -2,12 +2,14 @@ import "server-only";
 import { and, eq, inArray, ne, notInArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { diagnosisCodes, patientDiagnoses, patients } from "@/db/schema";
+import { diagnosisCodes, patientDiagnoses, patients, practices } from "@/db/schema";
+import { geocodeAddress } from "@/lib/geocode";
 import { findDuplicatePatient } from "@/lib/patient-duplicates";
 import { aideNeedsSkilledCare, SERVICE_VALUES } from "@/lib/patient-options";
 
 // Edit details on a patient's page, for the admin and the practice's clinicians: corrects what
-// was entered wrong (name, date of birth, contact, ordering doctor, services, diagnosis codes).
+// was entered wrong (name, date of birth, contact, home address, ordering doctor, services,
+// diagnosis codes). A changed address is looked up on the map, for checking clock-ins.
 // The admin's Care card (clinician, insurer, referral, start of care) is separate.
 
 const optional = z
@@ -25,6 +27,12 @@ const detailsInput = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date of birth.")
     .refine((d) => d <= new Date().toISOString().slice(0, 10), "The date of birth can't be in the future."),
   phone: optional,
+  address: z
+    .string()
+    .trim()
+    .max(300)
+    .optional()
+    .transform((v) => v || null),
   email: z
     .string()
     .trim()
@@ -40,7 +48,7 @@ const detailsInput = z.object({
 
 export type PatientDetailsInput = z.input<typeof detailsInput>;
 export type PatientDetailsResult =
-  | { ok: true; name: string }
+  | { ok: true; name: string; addressNotFound?: boolean }
   | { ok: false; message: string }
   | { ok: false; duplicate: { name: string; dateOfBirth: string } };
 
@@ -58,8 +66,9 @@ export async function savePatientDetails(practiceId: string, input: PatientDetai
   }
 
   const [current] = await db
-    .select({ fullName: patients.fullName, dateOfBirth: patients.dateOfBirth })
+    .select({ fullName: patients.fullName, dateOfBirth: patients.dateOfBirth, address: patients.address, country: practices.country })
     .from(patients)
+    .innerJoin(practices, eq(practices.id, patients.practiceId))
     .where(and(eq(patients.id, v.patientId), eq(patients.practiceId, practiceId), ne(patients.status, "merged")));
   if (!current) return { ok: false, message: "We couldn't find that patient. Please refresh the page." };
 
@@ -75,6 +84,10 @@ export async function savePatientDetails(practiceId: string, input: PatientDetai
     if (match && match.id !== v.patientId) return { ok: false, duplicate: { name: match.name, dateOfBirth: match.dateOfBirth } };
   }
 
+  // Only a changed address is looked up again (the lookup goes to a map service; see geocode.ts).
+  const addressChanged = (current.address ?? null) !== v.address;
+  const home = addressChanged && v.address ? await geocodeAddress(v.address, current.country) : null;
+
   await db.transaction(async (tx) => {
     await tx
       .update(patients)
@@ -82,6 +95,7 @@ export async function savePatientDetails(practiceId: string, input: PatientDetai
         fullName: v.fullName,
         dateOfBirth: v.dateOfBirth,
         phone: v.phone,
+        ...(addressChanged ? { address: v.address, homeLat: home?.lat ?? null, homeLng: home?.lng ?? null } : {}),
         invoiceEmail: v.email,
         orderingDoctor: v.orderingDoctor,
         servicesOrdered: v.servicesOrdered,
@@ -102,5 +116,5 @@ export async function savePatientDetails(practiceId: string, input: PatientDetai
         .onConflictDoNothing();
     }
   });
-  return { ok: true, name: v.fullName };
+  return { ok: true, name: v.fullName, addressNotFound: addressChanged && Boolean(v.address) && !home };
 }

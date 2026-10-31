@@ -35,13 +35,19 @@ Menu: Appointments, Notes to do, Patients, Invoices, Contracts, Notifications, P
 
 ## Appointments
 - Shows today with a Monday–Sunday week strip; arrows move between weeks, "Back to today" returns. A dot marks days with notes to do.
-- Book a visit: tap "Book a visit", find the patient (or add a new one), pick the date and time, the length in hours and minutes (10 minutes up to 24 hours, for long nursing visits and aide shifts), the type of care and the fee. The fee pre-fills from your last fee for that type of care, or your visit fee in Settings.
+- Book a visit: tap "Book a visit", find the patient (or add a new one), pick In person or Virtual, the date and time, the length in hours and minutes (10 minutes up to 24 hours, for long nursing visits and aide shifts), the type of care and the fee. The fee pre-fills from your last fee for that type of care, or your visit fee in Settings.
 - Each visit shows a status: Upcoming, Needs note (finished, no note), Draft (note started), Signed, Invoiced, or Missed.
 - Overnight visits read like "08:00–07:30 next day".
 - The Tomorrow card lists tomorrow's visits. "Email me tomorrow's list" sends it now; "Email me every evening at 6 pm" sends it each evening.
 
-## Visit times
-On the visit page, record Time in and Time out. On the visit day, one tap sets "now". Typed times count as the visit's day; a time out at or before the time in counts as the next morning. Times lock when the note is signed.
+## Clocking in and out
+- On the visit page, tap "Clock in" when you arrive at the patient's home and "Clock out" before you leave. The patient signs on your phone when you clock out (in-person visits). You can clock in from 2 hours before the visit.
+- In-person visits share your phone's location, and Tiba checks you're at the patient's home (within about 250 m of the address on their record). If you're further away, or your location can't be read, you can still clock in or out, but it's flagged and your admin is told straight away.
+- If your phone asks, allow Tiba to use your location. If you blocked it, allow it for this site in your browser's settings. "Clock in without location" works too, but your admin is told.
+- Virtual visits: choose Virtual when booking, or on the visit page before you clock in. They don't use your location or need the patient's signature.
+- Your admin sees every clock-in and clock-out. Clock-ins can't be changed or deleted. The clock times are the visit's time in and time out on the note, its PDF and invoices.
+- You need to clock in and out before you can sign the note. A visit you've clocked in to can't be marked missed.
+- The patient's home address is under Details on their record ("Edit details"). If it says "Not found on the map", check the address so clock-ins can be checked.
 
 ## Missed visits
 If a visit didn't happen, open it and choose "The visit didn't happen", then pick why (patient wasn't home, cancelled at short notice, in hospital, refused, you couldn't make it, or type another reason). A missed visit needs no note and can't be invoiced. "It happened after all" undoes it. Your admin sees missed visits in Performance.
@@ -51,7 +57,7 @@ If a visit didn't happen, open it and choose "The visit didn't happen", then pic
 - Fill in the sections. The note saves as you type (a draft). The progress bar shows how many sections are done.
 - Evaluations set goals; progress notes then rate each goal (Met, Progressing, Not met).
 - Billing codes: enter minutes per code; units follow the 8-minute rule (8–22 minutes is 1 unit, 23–37 is 2, and so on).
-- Prefill: on a progress note, "Prefill from last visit" copies the signed note of the same type of care from the patient's most recent visit, written by anyone in your practice. Billing minutes and visit times aren't copied. "Undo" puts it back.
+- Prefill: on a progress note, "Prefill from last visit" copies the signed note of the same type of care from the patient's most recent visit, written by anyone in your practice. Billing minutes and clock times aren't copied. "Undo" puts it back.
 - An aide visit can't be documented until the patient has a signed aide service plan ("Needs plan").
 - If a note is for another discipline, Tiba says so: check your discipline in Settings.
 
@@ -68,7 +74,7 @@ Lists finished visits that need a note ("Write note") and drafts you've started 
 
 ## Patients
 - The list shows every patient in your practice. Search by name; a typo is fine.
-- Add patient: name, date of birth, phone, email, diagnosis, services ordered and ordering doctor. If someone with the same name and date of birth exists, Tiba warns you; "Add and ask admin to check" saves it for your admin to review.
+- Add patient: name, date of birth, phone, email, diagnosis, services ordered and ordering doctor. Add their home address with "Edit details" on their record. If someone with the same name and date of birth exists, Tiba warns you; "Add and ask admin to check" saves it for your admin to review.
 - A patient's record shows details, diagnosis codes, the care team (services ordered, goals from evaluations, the aide service plan) and your visits. "Download PDF" gives the patient record.
 
 ## Invoices
@@ -90,7 +96,7 @@ Settings: your discipline (decides which notes you can write), the visit fee, pr
 
 const ADMIN = `
 # The admin app
-Menu: Overview, Notifications, Performance; People: Clinicians, Patients, Patient messages, Referral sources; Work: Appointments, Completed notes, Invoices, Insurance billing; Practice: Contracts, Locations, Patient reviews, Settings. On a phone the tabs are Overview, Patients, Billing and More. Admins never write notes.
+Menu: Overview, Notifications, Performance; People: Clinicians, Patients, Patient messages, Referral sources; Work: Appointments, Clock in and out, Completed notes, Invoices, Insurance billing; Practice: Contracts, Locations, Patient reviews, Settings. On a phone the tabs are Overview, Patients, Billing and More. Admins never write notes.
 
 ## Overview
 "Needs your attention" lists what needs you: clinicians waiting to be verified, notes unbilled for 30+ days, service agreements the client signed that need your signature, contract replies and signatures, new invoices, invoice issues, possible duplicate patients, patients asking to join the patient portal, new messages from patients, referral sources asking to join, referrals waiting for your decision, new messages from referral sources, deactivated accounts and new reviews. "Today across the practice" lists today's visits.
@@ -112,6 +118,8 @@ Menu: Overview, Notifications, Performance; People: Clinicians, Patients, Patien
 
 ## Appointments and completed notes
 - Appointments lists upcoming visits for every clinician, by day.
+- Clock in and out lists the last 30 days of visits with when and where each clinician clocked in and out: "At the patient's home", "2.3 km from the patient's home", "Location not shared", "Patient's address not on the map" or "Virtual visit", how accurate the phone was, and "Show signature" for the patient's signature at clock-out. Tabs: All, Flagged and Not clocked, plus a clinician filter. You get a notification for every clock-in and clock-out, and an email when one is flagged. Records can't be changed or deleted.
+- Add or correct a patient's home address with "Edit details" on their page. Tiba looks it up on the map; "Not found on the map" means clock-ins there can't be checked.
 - Completed notes lists every signed note with a clinician filter. Open one to read it, download the PDF, or "Mark as billed" once billed to insurance.
 
 ## Invoices

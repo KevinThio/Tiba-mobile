@@ -41,8 +41,8 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Never send page addresses (which can name a patient record) to other sites.
   { key: "Referrer-Policy", value: "no-referrer" },
-  // Device features Tiba never uses stay off.
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()" },
+  // Device features Tiba never uses stay off. Location is only for clocking in and out of visits.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), payment=(), usb=(), browsing-topics=()" },
   // Keep other windows and sites from reaching into Tiba's pages and responses.
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },

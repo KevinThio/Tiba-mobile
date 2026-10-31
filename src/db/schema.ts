@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -213,6 +214,10 @@ export const patients = pgTable(
     dateOfBirth: date("date_of_birth").notNull(),
     gender: text("gender"),
     address: text("address"),
+    // Where the address is on the map, looked up when the address is saved (src/lib/geocode.ts).
+    // Clock-ins on in-person visits are checked against it. Null when it wasn't found.
+    homeLat: doublePrecision("home_lat"),
+    homeLng: doublePrecision("home_lng"),
     phone: text("phone"),
     // Where this patient's invoices were last emailed; pre-fills the next invoice.
     // Also the "Email" on Add patient ("Used to send their invoices").
@@ -239,6 +244,7 @@ export const patients = pgTable(
     index("patients_clinician_id_idx").on(t.clinicianId),
     index("patients_practice_id_idx").on(t.practiceId),
     check("patients_status_check", sql`${t.status} in ('active', 'discharged', 'merged')`),
+    check("patients_home_check", sql`(${t.homeLat} is null) = (${t.homeLng} is null)`),
     // Typo-tolerant name search (pg_trgm).
     index("patients_full_name_trgm_idx").using("gin", sql`${t.fullName} gin_trgm_ops`),
   ],
@@ -298,6 +304,9 @@ export const appointments = pgTable(
     // visit has no note and can't be invoiced (trigger in drizzle/0028).
     missedAt: timestamp("missed_at", { withTimezone: true }),
     missedReason: text("missed_reason"),
+    // A virtual (telehealth) visit: clocking in and out isn't checked against the patient's home.
+    // It can only change before the clinician clocks in.
+    virtual: boolean("virtual").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -599,6 +608,49 @@ export const referrals = pgTable(
     check("referrals_insurance_id_check", sql`${t.insuranceId} is null or length(${t.insuranceId}) between 1 and 60`),
     check("referrals_note_check", sql`${t.note} is null or length(${t.note}) between 1 and 1000`),
     check("referrals_decision_note_check", sql`${t.decisionNote} is null or length(${t.decisionNote}) between 1 and 500`),
+  ],
+);
+
+// Clocking in and out of a visit (electronic visit verification). The clinician clocks in on
+// arrival and out before leaving; the phone's position is compared with the patient's home
+// (src/lib/visit-clock.ts), and the patient signs at clock-out. Virtual visits record no
+// position. Rows can never be changed or deleted (drizzle/0036), and each one sets the visit's
+// time_in or time_out. Admins see them all on /admin/visits and are notified of every one.
+export const visitClocks = pgTable(
+  "visit_clocks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practices.id, { onDelete: "restrict" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "restrict" }),
+    clinicianId: text("clinician_id")
+      .notNull()
+      .references(() => clinicians.id, { onDelete: "restrict" }),
+    event: text("event", { enum: ["in", "out"] }).notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+    virtual: boolean("virtual").notNull(),
+    // "home": within reach of the patient's home; "away": further; "unknown": the phone didn't
+    // share its position; "no_home": the patient's address isn't on the map; "virtual".
+    place: text("place", { enum: ["home", "away", "unknown", "no_home", "virtual"] }).notNull(),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
+    accuracyM: integer("accuracy_m"),
+    distanceM: integer("distance_m"),
+    // The patient's signature at clock-out (a PNG data URL); required for in-person visits.
+    patientSignature: text("patient_signature"),
+  },
+  (t) => [
+    unique("visit_clocks_once").on(t.appointmentId, t.event),
+    index("visit_clocks_practice_idx").on(t.practiceId, t.at),
+    check("visit_clocks_event_check", sql`${t.event} in ('in', 'out')`),
+    check("visit_clocks_place_check", sql`${t.place} in ('home', 'away', 'unknown', 'no_home', 'virtual')`),
+    check("visit_clocks_virtual_check", sql`(${t.place} = 'virtual') = ${t.virtual}`),
+    check("visit_clocks_position_check", sql`(${t.latitude} is null) = (${t.longitude} is null)`),
+    check("visit_clocks_distance_check", sql`${t.place} not in ('home', 'away') or ${t.distanceM} is not null`),
+    check("visit_clocks_signature_check", sql`${t.event} = 'in' or ${t.virtual} or ${t.patientSignature} is not null`),
   ],
 );
 

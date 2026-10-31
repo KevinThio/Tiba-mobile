@@ -1,7 +1,8 @@
 "use client";
 
-import { UserRound } from "lucide-react";
+import { MapPin, MonitorSmartphone, UserRound } from "lucide-react";
 import { useState } from "react";
+import { ChoiceChip } from "@/components/choice-chip";
 import { FormAlert } from "@/components/form-alert";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ function BookingForm({
   const [patient, setPatient] = useState<PatientChoice>(null);
   const [typeOfCare, setTypeOfCare] = useState("");
   const [fee, setFee] = useState("");
+  const [virtual, setVirtual] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -113,6 +115,7 @@ function BookingForm({
       durationMinutes,
       typeOfCare,
       fee,
+      virtual,
       patient:
         patient.kind === "existing"
           ? { kind: "existing", id: patient.patient.id }
@@ -148,6 +151,23 @@ function BookingForm({
         <FormField label="Date" name="date" type="date" defaultValue={date} required />
         <FormField label="Time" name="time" type="time" step={300} required />
       </div>
+
+      <fieldset className="grid gap-2">
+        <legend className="mb-2 text-sm font-medium">Where</legend>
+        <div role="radiogroup" aria-label="Where" className="flex flex-wrap gap-2">
+          <ChoiceChip single on={!virtual} onClick={() => setVirtual(false)}>
+            <MapPin className="size-4" aria-hidden /> In person
+          </ChoiceChip>
+          <ChoiceChip single on={virtual} onClick={() => setVirtual(true)}>
+            <MonitorSmartphone className="size-4" aria-hidden /> Virtual
+          </ChoiceChip>
+        </div>
+        <p className="text-small text-muted-foreground">
+          {virtual
+            ? "You can clock in and out from anywhere."
+            : "You clock in and out at the patient's home, and they sign when you clock out."}
+        </p>
+      </fieldset>
 
       <fieldset className="grid gap-2">
         <legend className="mb-2 text-sm font-medium">Length</legend>

@@ -90,6 +90,16 @@ page. Each person is limited to 60 questions per 10 minutes (15 per IP address w
 out). People are told not to type patient details, but someone might; before real patients,
 move the assistant to Gemini on Vertex AI under Google Cloud's BAA, or remove the button.
 
+### Address lookup (clocking in and out)
+
+Clinicians clock in and out of in-person visits from the patient's home, and Tiba compares the
+phone's location with the patient's address. To know where an address is, Tiba sends the address
+(never the name) to a map service when it's saved. Without a key it uses OpenStreetMap's free
+Nominatim, which is fine for test data but has no BAA. Before real patients, create a Google
+Maps Platform key with only the **Geocoding API** enabled, restrict it to that API, set
+`GOOGLE_MAPS_API_KEY` on the app, and cover it under Google Cloud's BAA. Addresses saved before
+the key is set keep their earlier lookup; save them again to look them up with Google.
+
 ## 3. Your own web address (when you have a domain)
 
 1. Buy a domain (any registrar: Cloudflare, Namecheap, Google/Squarespace Domains).
@@ -110,6 +120,8 @@ Do all of these before the first real patient's details go in:
 - [ ] **Email BAA:** emails carry invoices (patient names and visits) and reminders (first name
       and initial). Use an email provider that signs a BAA (for example Paubox, or Amazon SES
       under an AWS BAA), or turn off emailing invoices to patients.
+- [ ] **Address lookup BAA:** set `GOOGLE_MAPS_API_KEY` and sign Google Cloud's BAA before
+      saving real patients' addresses (see "Address lookup" above).
 - [ ] **Your agreements:** Tiba is a business associate of each practice. Have a lawyer prepare
       the BAA you sign with practices, plus Terms of Service and a Privacy Policy.
 - [ ] **Risk assessment:** a HIPAA security risk analysis, written policies, and a breach

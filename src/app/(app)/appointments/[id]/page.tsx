@@ -25,11 +25,12 @@ import { clinicianSettings } from "@/lib/account";
 import { canWriteCare, caresDescription, disciplineLabel, kindsForDiscipline } from "@/lib/disciplines";
 import { draftPlanFor, goalsFromEvaluation, hasSignedPlan } from "@/lib/note-context";
 import { practiceLogoUrl } from "@/lib/practice-logo";
+import { visitClockState, type ClockRecord } from "@/lib/visit-clock";
 import { AmendmentBanner } from "./amend";
 import { MarkMissed, MissedVisit } from "./missed";
 import { AideLock, NoteEditor } from "./note-editor";
 import { SignedNote } from "./signed-note";
-import { VisitTimes } from "./visit-times";
+import { VisitClock } from "./visit-clock";
 
 /**
  * Visit note (spec v2 section 4). Unsigned: the note editor. Signed: the locked note with the
@@ -53,6 +54,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       practiceUpdatedAt: practices.updatedAt,
       timeIn: appointments.timeIn,
       timeOut: appointments.timeOut,
+      virtual: appointments.virtual,
       missedAt: appointments.missedAt,
       missedReason: appointments.missedReason,
       noteId: notes.id,
@@ -158,16 +160,21 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
   }
 
   const firstName = visit.patientName.split(" ")[0];
+  const clock = await visitClockState(id);
+  const clockView = (r: ClockRecord | null) => r && { at: r.at.toISOString(), place: r.place, distanceM: r.distanceM, signed: r.signed };
   const visitTimes = (
     <>
-      <VisitTimes
+      <VisitClock
         appointmentId={id}
+        patientFirstName={firstName}
         startsAt={visit.startsAt.toISOString()}
-        durationMinutes={visit.durationMinutes}
-        initial={{ timeIn: visit.timeIn?.toISOString() ?? null, timeOut: visit.timeOut?.toISOString() ?? null }}
+        virtual={visit.virtual}
+        clockIn={clockView(clock.in)}
+        clockOut={clockView(clock.out)}
+        typedTimes={{ timeIn: visit.timeIn?.toISOString() ?? null, timeOut: visit.timeOut?.toISOString() ?? null }}
         locked={false}
       />
-      {!visit.noteId && hasStarted(visit.startsAt) && <MarkMissed appointmentId={id} />}
+      {!visit.noteId && !clock.in && hasStarted(visit.startsAt) && <MarkMissed appointmentId={id} />}
     </>
   );
 
@@ -178,7 +185,7 @@ export default async function VisitNotePage({ params }: PageProps<"/appointments
       <div className="grid grid-cols-1 gap-6">
         <PageHeader back={{ href: "/appointments", label: "Appointments" }} overline="Aide visit" title={visit.patientName} />
         <AideLock patientFirstName={firstName} planHref={draftPlan ? `/appointments/${draftPlan}` : null} />
-        {!visit.noteId && hasStarted(visit.startsAt) && <MarkMissed appointmentId={id} />}
+        {visitTimes}
       </div>
     );
   }
